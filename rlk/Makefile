@@ -1,79 +1,106 @@
-include scripts/env.mk
+AS   = /cross/i386-linux-elf/gcc-core-static/bin/i386-lenxyang-elf-as
+AR   = /cross/i386-linux-elf/gcc-core-static/bin/i386-lenxyang-elf-ar
+CC   = /cross/i386-linux-elf/gcc-core-static/bin/i386-lenxyang-elf-gcc
+CPP  = $(CC) -E
+LD   = /cross/i386-linux-elf/gcc-core-static/bin/i386-lenxyang-elf-ld
+MAKE = make
 
-ARCH=x86
-BUILD_UNITTEST=1
+arch=x86
+arch_setup=arch/$(arch)/boot
+arch_kernel=arch/$(arch)/kernel
 
-ifeq ($(BUILD_UNITTEST),0)
-AR=$(CROSS_AR)
-AS=$(CROSS_AS)
-CC=$(CROSS_CC)
-CXX=$(CROSS_CXX)
-LD=$(CROSS_LD)
-else
-AR=$(HOST_AR)
-AS=$(HOST_AS)
-CC=$(HOST_CC)
-CXX=$(HOST_CXX)
-LD=$(HOST_CXX)
-endif
+CONFIG= -DCONFIG_X86_32 \
+	-DCONFIG_X86_L1_CACHE_BYTES=64\
+	-DCONFIG_X86_INTERNODE_CACHE_BYTES=64 \
+	-DCONFIG_X86_L1_CACHE_SHIFT=5 \
+	-DCONFIG_PAGE_OFFSET=0xC0000000 \
 
-ifeq ($(BUILD_UNITTEST),0)
-CXXFLAGS = -c -g  -I. -Iinclude -Iarch/$(ARCH)/include -Wall \
+CFLAGS = -c -g  -I. -Iinclude -Iarch/$(arch)/include \
+	-Wall -Wstrict-prototypes \
 	-march=i386 -mregparm=3 \
 	-ffreestanding \
 	-fno-toplevel-reorder \
 	-fno-stack-protector \
 	-mpreferred-stack-boundary=2 \
-	-m32 
-
-CFLAGS = $(CXXFLAGS) -std=gnu99 -nostdinc -fno-builtin \
 	-mno-sse -mno-mmx -mno-sse2 -mno-3dnow \
-	-DCONFIG_X86_32 \
-	-Wstrict-prototypes
-else
-CXXFLAGS = -c -g  -I. -Iinclude -Iarch/$(ARCH)/include -Wall 
-
-CFLAGS = $(CXXFLAGS) -DCONFIG_X86_32 -std=gnu99
-endif
+	-m32 -D__KERNEL__ $(CONFIG) \
+	-std=gnu99 -fno-builtin -nostdinc
 
 AFLAGS = $(CFLAGS) -D__ASSEMBLY__ -fomit-frame-pointer \
 
-KERNEL_CFLAGS=$(CFLAGS) -D__KERNEL__
+BOOTCFLAGS = $(CFLAGS) -include linux/gcc16code.h
+BOOTAFLAGS = $(BOOTCFLAGS) -D__ASSEMBLY__
+MMCFLAGS = $(CFLAGS) -Imm
+
+all: install
+
+boot_objs = $(arch_setup)/main.c.o $(arch_setup)/memory.c.o \
+	$(arch_setup)/pmjump.S.o $(arch_setup)/pm.c.o \
+	$(arch_setup)/bioscall.S.o $(arch_setup)/regs.c.o \
+	$(arch_setup)/copy.S.o $(arch_setup)/header.S.o \
+	$(arch_setup)/printf.c.o $(arch_setup)/string.c.o $(arch_setup)/tty.c.o
+
+binary := setup.bin
+debugs := setup.gdb
+
+vmlinux_size =`du -h vmlinux.bin | cut -f1`
+install: $(binary) $(debugs)
+	cp vm/bak.img vm/a.img
+	dd if=setup.bin    of=vm/a.img bs=512 count=19 conv=notrunc seek=1
+	dd if=vmlinux.bin  of=vm/a.img bs=512 count=1000 conv=notrunc seek=20
+
+setup.bin: $(boot_objs)
+	$(LD) -s -T $(arch_setup)/setup.ld $? -o $@
+
+setup.gdb: $(boot_objs)
+	$(LD) -T $(arch_setup)/setup.ld $? -o $@
+
+# setup
+$(arch_setup)/main.c.o: $(arch_setup)/main.c
+	$(CC) $(BOOTCFLAGS) $? -o $@
+
+$(arch_setup)/memory.c.o: $(arch_setup)/memory.c
+	$(CC) $(BOOTCFLAGS) $? -o $@
+
+$(arch_setup)/pm.c.o: $(arch_setup)/pm.c
+	$(CC) $(BOOTCFLAGS) $? -o $@
+
+$(arch_setup)/printf.c.o: $(arch_setup)/printf.c
+	$(CC) $(BOOTCFLAGS) $? -o $@
+
+$(arch_setup)/string.c.o: $(arch_setup)/string.c
+	$(CC) $(BOOTCFLAGS) $? -o $@
+
+$(arch_setup)/tty.c.o: $(arch_setup)/tty.c
+	$(CC) $(BOOTCFLAGS) $? -o $@
+
+$(arch_setup)/regs.c.o: $(arch_setup)/regs.c
+	$(CC) $(BOOTCFLAGS) $? -o $@
+
+$(arch_setup)/pmjump.S.o: $(arch_setup)/pmjump.S
+	$(CC) $(BOOTAFLAGS) $? -o $@
+
+$(arch_setup)/bioscall.S.o: $(arch_setup)/bioscall.S
+	$(CC) $(BOOTAFLAGS) $? -o $@
+
+$(arch_setup)/copy.S.o: $(arch_setup)/copy.S
+	$(CC) $(BOOTAFLAGS) $? -o $@
+
+$(arch_setup)/header.S.o: $(arch_setup)/header.S
+	$(CC) $(BOOTAFLAGS) $? -o $@
 
 
-kernel_objs=out/arch/x86/kernel/e820.c.o
+gdb:
+	$(MAKE) -C $(ROOTDIR) -f $(ROOTDIR)/$(GDBMK) gdb
 
-unittest_objs= out/unittest/unittests.cc.o 
-#	out/unittest/arch/x86/kernel/e820.cc.o
+run:
+	$(MAKE) -C $(ROOTDIR) -f $(ROOTDIR)/$(GDBMK) run
 
-GTEST_CXXFLAGS=$(CXXFLAGS) -Ithird_party/gtest-1.6.0/include \
-	-Ithird_party/gmock-1.6.0/include
-GTEST_LDFLAGS=-Lthird_party/gtest-1.6.0/lib/.libs/ \
-	-Lthird_party/gmock-1.6.0/lib/.libs/\
-	-lgtest -lgmock 
+bgdb:
+	$(MAKE) -C $(ROOTDIR) -f $(ROOTDIR)/$(GDBMK) bgdb
 
-ifeq ($(BUILD_UNITTEST),0)
-all: prepare vmlinux
-else
-all: prepare vmlinux test_cases
-endif
-
-vmlinux: ${kernel_objs}
-
-test_cases: ${unittest_objs}
-	$(LD) ${unittest_objs} $(GTEST_LDFLAGS) -o $@
-
-out/arch/${ARCH}/kernel/e820.c.o: arch/${ARCH}/kernel/e820.c
-	$(CC) $(KERNEL_CFLAGS) $? -o $@
-
-out/unittest/arch/x86/kernel/e820.cc.o: unittest/arch/x86/kernel/e820.cc
-	$(CXX) $(GTEST_CXXFLAGS) $? -o $@
-
-out/unittest/unittests.cc.o: unittest/unittests.cc
-	$(CXX) $(GTEST_CXXFLAGS) $? -o $@
-
-prepare:
-	mkdir -p out/arch/x86/kernel
-	mkdir -p out/unittest/arch/x86/kernel
 clean:
-	rm -fr out
+	rm -f $(arch_setup)/*.o
+
+
+
