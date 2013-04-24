@@ -45,9 +45,9 @@ debugs := setup.gdb
 
 vmlinux_size =`du -h vmlinux.bin | cut -f1`
 install: $(binary) $(debugs)
-	cp vm/bak.img vm/a.img
-	dd if=setup.bin    of=vm/a.img bs=512 count=19 conv=notrunc seek=1
-	dd if=vmlinux.bin  of=vm/a.img bs=512 count=1000 conv=notrunc seek=20
+	cp ../vm/bak.img ../vm/a.img
+	dd if=setup.bin    of=../vm/a.img bs=512 count=19 conv=notrunc seek=1
+	dd if=vmlinux.bin  of=../vm/a.img bs=512 count=1000 conv=notrunc seek=20
 
 setup.bin: $(boot_objs)
 	$(LD) -s -T $(arch_setup)/setup.ld $? -o $@
