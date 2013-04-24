@@ -1,0 +1,9 @@
+out
+*.a
+*.d
+*.o
+*.img
+*.lds
+vmlinux
+*.gdb
+*.bin

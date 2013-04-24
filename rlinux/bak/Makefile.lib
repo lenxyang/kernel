@@ -1,0 +1,73 @@
+
+comma := ,
+empty := 
+space := $(empty) $(empty)
+
+extra-y += $(EXTRA_TARGETS)
+
+# 把已经出现在obj-y当中的文件从obj-m当中去掉
+# 因为这些模块已经被编译进内核了
+obj-m := $(filter-out $(obj-y),$(obj-m))
+
+# 将已经出现在obj-y当中的文件从lib-y当中去掉
+lib-y := $(filter-out $(obj-y), $(sort $(lib-y) $(lib-m)))
+
+# Handle objects in subdirs
+# ---------------------------------------------------------------------------
+# o if we encounter foo/ in $(obj-y), replace it by foo/built-in.o
+#   and add the directory to the list of dirs to descend into: $(subdir-y)
+# o if we encounter foo/ in $(obj-m), remove it from $(obj-m)
+#   and add the directory to the list of dirs to descend into: $(subdir-m)
+
+__subdir-y      := $(patsubst %/,%,$(filter %/, $(obj-y)))
+subdir-y        += $(__subdir-y)
+__subdir-m      := $(patsubst %/,%,$(filter %/, $(obj-m)))
+subdir-m        += $(__subdir-m)
+obj-y           := $(patsubst %/, %/built-in.o, $(obj-y))
+obj-m           := $(filter-out %/, $(obj-m))
+
+# Subdirectories we need to descend into
+subdir-ym       := $(sort $(subdir-y) $(subdir-m))
+
+
+# The temporary file to save gcc -MD generated dependencies must not
+# contain a comma
+depfile = $(subst $(comma),_,$(@D)/.$(@F).d)
+
+# These flags are needed for modversions and compiling, so we define them here
+# already
+# $(modname_flags) #defines KBUILD_MODNAME as the name of the module it will
+# end up in (or would, if it gets compiled in)
+# Note: It's possible that one object gets potentially linked into more
+#       than one module. In that case KBUILD_MODNAME will be set to foo_bar,
+#       where foo and bar are the name of the modules.
+basename_flags = -DKBUILD_BASENAME=$(subst $(comma),_,$(subst -,_,$(*F)))
+modname_flags  = $(if $(filter 1,$(words $(modname))),-DKBUILD_MODNAME=$(subst $(comma),_,$(subst -,_,$(modname))))
+
+_c_flags       = $(CFLAGS) $(EXTRA_CFLAGS) $(CFLAGS_$(*F).o)
+_a_flags       = $(AFLAGS) $(EXTRA_AFLAGS) $(AFLAGS_$(*F).o)
+_cpp_flags     = $(CPPFLAGS) $(EXTRA_CPPFLAGS) $(CPPFLAGS_$(@F))
+
+ifeq ($(KBUILD_SRC),)
+__c_flags       = $(_c_flags)
+__a_flags       = $(_a_flags)
+__cpp_flags     = $(_cpp_flags)
+else
+# Prefix -I with $(srctree) if it is not an absolute path
+addtree = $(if $(filter-out -I/%,$(1)),$(patsubst -I%,-I$(srctree)/%,$(1))) $(1)
+# Find all -I options and call addtree
+flags = $(foreach o,$($(1)),$(if $(filter -I%,$(o)),$(call addtree,$(o)),$(o)))
+
+# -I$(obj) locates generated .h files
+# $(call addtree,-I$(obj)) locates .h files in srctree, from generated .c files
+#   and locates generated .h files
+# FIXME: Replace both with specific CFLAGS* statements in the makefiles
+__c_flags       = $(call addtree,-I$(obj)) $(call flags,_c_flags)
+__a_flags       =                          $(call flags,_a_flags)
+__cpp_flags     =                          $(call flags,_cpp_flags)
+endif
+
+
+quiet_cmd_ld = LD      $@
+cmd_ld = $(LD) $(LDFLAGS) $(EXTRA_LDFLAGS) $(LDFLAGS_$(@F)) \
+               $(filter-out FORCE,$^) -o $@
