@@ -13,7 +13,7 @@ CONFIG= -DCONFIG_X86_32 \
 	-DCONFIG_X86_L1_CACHE_BYTES=64\
 	-DCONFIG_X86_INTERNODE_CACHE_BYTES=64 \
 	-DCONFIG_X86_L1_CACHE_SHIFT=5 \
-	-DCONFIG_PAGE_OFFSET=0xC0000000 \
+	-DCONFIG_PAGE_OFFSET=0xC0000000
 
 CFLAGS = -c -g  -I. -Iinclude -Iarch/$(arch)/include \
 	-Wall -Wstrict-prototypes \
@@ -28,34 +28,62 @@ CFLAGS = -c -g  -I. -Iinclude -Iarch/$(arch)/include \
 
 AFLAGS = $(CFLAGS) -D__ASSEMBLY__ -fomit-frame-pointer \
 
+
 BOOTCFLAGS = $(CFLAGS) -include linux/gcc16code.h
 BOOTAFLAGS = $(BOOTCFLAGS) -D__ASSEMBLY__
 MMCFLAGS = $(CFLAGS) -Imm
 
+ARCH_KERNEL_CFLAGS = $(CFLAGS)
+ARCH_KERNEL_AFLAGS = $(AFLAGS)
+
+
 all: install
 
-boot_objs = $(arch_setup)/main.c.o $(arch_setup)/memory.c.o \
+setup_objs = $(arch_setup)/main.c.o $(arch_setup)/memory.c.o \
 	$(arch_setup)/pmjump.S.o $(arch_setup)/pm.c.o \
 	$(arch_setup)/bioscall.S.o $(arch_setup)/regs.c.o \
 	$(arch_setup)/copy.S.o $(arch_setup)/header.S.o \
 	$(arch_setup)/printf.c.o $(arch_setup)/string.c.o $(arch_setup)/tty.c.o
 
-binary := setup.bin
-debugs := setup.gdb
+arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o 
+arch_mm_objs     =
+arch_lib_objs    =
+kernel_objs      =
+mm_objs          =
+lib_objs         =
+init_objs        =
+
+binary := setup.bin vmlinux.bin
+debugs := setup.gdb vmlinux.gdb
 
 vmlinux_size =`du -h vmlinux.bin | cut -f1`
 install: $(binary) $(debugs)
-	cp ../vm/bak.img ../vm/a.img
-	dd if=setup.bin    of=../vm/a.img bs=512 count=19 conv=notrunc seek=1
-	dd if=vmlinux.bin  of=../vm/a.img bs=512 count=1000 conv=notrunc seek=20
+	cp vm/bak.img vm/a.img
+	dd if=setup.bin    of=vm/a.img bs=512 count=19 conv=notrunc seek=1
+	dd if=vmlinux.bin  of=vm/a.img bs=512 count=1000 conv=notrunc seek=20
 
-setup.bin: $(boot_objs)
+###################################################
+# setup
+vmlinux.bin: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs)
+	$(LD) -s -T $(arch_kernel)/vmlinux.lds $? -o $@
+
+vmlinux.gdb: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs)
+	$(LD) -T $(arch_kernel)/vmlinux.lds $? -o $@
+
+$(arch_kernel)/head.S.o: $(arch_kernel)/head.S
+	$(CC) $(ARCH_KERNEL_AFLAGS) $? -o $@
+
+$(arch_kernel)/setup.c.o: $(arch_kernel)/setup.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+
+###################################################
+# setup
+setup.bin: $(setup_objs)
 	$(LD) -s -T $(arch_setup)/setup.ld $? -o $@
 
-setup.gdb: $(boot_objs)
+setup.gdb: $(setup_objs)
 	$(LD) -T $(arch_setup)/setup.ld $? -o $@
 
-# setup
 $(arch_setup)/main.c.o: $(arch_setup)/main.c
 	$(CC) $(BOOTCFLAGS) $? -o $@
 
@@ -89,18 +117,22 @@ $(arch_setup)/copy.S.o: $(arch_setup)/copy.S
 $(arch_setup)/header.S.o: $(arch_setup)/header.S
 	$(CC) $(BOOTAFLAGS) $? -o $@
 
+run:
+	./tools/run.sh
+
+brun:
+	./tools/bochs_run.sh
 
 gdb:
-	$(MAKE) -C $(ROOTDIR) -f $(ROOTDIR)/$(GDBMK) gdb
-
-run:
-	$(MAKE) -C $(ROOTDIR) -f $(ROOTDIR)/$(GDBMK) run
+	./tools/gdb.sh
 
 bgdb:
-	$(MAKE) -C $(ROOTDIR) -f $(ROOTDIR)/$(GDBMK) bgdb
+	./tools/bochs_gdb.sh
+
+binternaldbg:
+	./tools/bochs_internal_gdb.sh
 
 clean:
 	rm -f $(arch_setup)/*.o
-
-
-
+	rm -f $(arch_kernel)/*.o
+	rm -f setup.gdb setup.bin
