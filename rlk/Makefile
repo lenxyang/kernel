@@ -54,13 +54,16 @@ setup_objs = $(arch_setup)/main.c.o $(arch_setup)/memory.c.o \
 
 arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
 		$(arch_kernel)/e820.c.o $(arch_kernel)/paravirt-spinlocks.c.o \
-		$(arch_kernel)/paravirt.c.o $(arch_kernel)/paravirt_patch_32.c.o
-arch_mm_objs     = $(arch_mm)/highmem.c.o
+		$(arch_kernel)/paravirt.c.o $(arch_kernel)/paravirt_patch_32.c.o \
+		$(arch_kernel)/entry.S.o $(arch_kernel)/io_delay.c.o \
+		$(arch_kernel)/rtc.c.o
+arch_mm_objs     = $(arch_mm)/highmem.c.o $(arch_mm)/pgtable.c.o \
+		$(arch_mm)/pgtable_32.c.o $(arch_mm)/init_32.c.o
 arch_lib_objs    = $(arch_lib)/delay.c.o $(arch_lib)/checksum_32.S.o \
 		$(arch_lib)/memcpy_32.c.o $(arch_lib)/strstr_32.c.o \
 		$(arch_lib)/string_32.c.o
 kernel_objs      = kernel/printk.c.o
-mm_objs          = mm/highmem.c.o
+mm_objs          = mm/highmem.c.o  
 lib_objs         = 
 init_objs        = init/main.c.o
 
@@ -84,6 +87,8 @@ vmlinux.gdb: $(arch_kernel_objs)  $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs
 # arch/x86/kernel
 $(arch_kernel)/head.S.o: $(arch_kernel)/head.S
 	$(CC) $(ARCH_KERNEL_AFLAGS) $? -o $@
+$(arch_kernel)/entry.S.o: $(arch_kernel)/entry.S
+	$(CC) $(ARCH_KERNEL_AFLAGS) $? -o $@
 $(arch_kernel)/setup.c.o: $(arch_kernel)/setup.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 $(arch_kernel)/e820.c.o: $(arch_kernel)/e820.c
@@ -96,8 +101,18 @@ $(arch_kernel)/paravirt.c.o: $(arch_kernel)/paravirt.c
 	$(CC) -fno-stack-protector $(ARCH_KERNEL_CFLAGS) $? -o $@
 $(arch_kernel)/paravirt_patch_32.c.o: $(arch_kernel)/paravirt_patch_32.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+$(arch_kernel)/io_delay.c.o: $(arch_kernel)/io_delay.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+$(arch_kernel)/rtc.c.o: $(arch_kernel)/rtc.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 
 $(arch_mm)/highmem.c.o: $(arch_mm)/highmem.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/pgtable.c.o: $(arch_mm)/pgtable.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/pgtable_32.c.o: $(arch_mm)/pgtable_32.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/init_32.c.o: $(arch_mm)/init_32.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 
 $(arch_lib)/delay.c.o: $(arch_lib)/delay.c

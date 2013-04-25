@@ -3,8 +3,8 @@
 
 #include <asm/page.h>
 #include <asm/e820.h>
-
 #include <asm/pgtable_types.h>
+#include <linux/spinlock.h>
 
 /*
  * Macro to mark a page protection value as UC-

@@ -7,6 +7,7 @@
 #include <asm/setup.h>
 #include <asm/e820.h>
 #include <asm/asm-offsets.h>
+#include <asm/cache.h>
 
 
 /* Physical address */
@@ -157,18 +158,6 @@ __puts:
 msg:
 	.asciz	"We are in protected model, Now!"
 
-boot_gdt_table:	
-        .quad 	0x0000000000000000
-	.quad 	0x0000000000000000
-        .quad 	0x00cf9a000000ffff
-        .quad 	0x00cf92000000ffff
-	.quad	0x0000000000000000
-boot_gdt_descr:
-	.word 	boot_gdt_descr - boot_gdt_table
-	.long 	boot_gdt_table - __PAGE_OFFSET
-	.word	0
-	.long	0
-
 /*
  * BSS section
  */
@@ -188,3 +177,43 @@ ENTRY(empty_zero_page)
 ENTRY(kernel_stack)
 	.fill	4096,1,0
 ENTRY(kernel_stack_top)
+
+/*
+ * only used by the lidt and lgdt instructions. They are not
+ * like usual segment descriptors - they consist of a 16-bit
+ * segment size, and 32-bit linear address value:
+ */
+
+.globl boot_gdt_descr
+.globl idt_descr
+
+	ALIGN
+# early boot GDT descriptor (must use 1:1 address mapping)
+	.word 0                         # 32 bit align gdt_desc.address
+boot_gdt_descr:
+	.word __BOOT_DS+7
+	.long boot_gdt - __PAGE_OFFSET
+	
+	.word 0                         # 32-bit align idt_desc.address
+idt_descr:
+	.word IDT_ENTRIES*8-1           # idt contains 256 entries
+	.long idt_table
+
+# boot GDT descriptor (later on used by CPU#0):
+	.word 0                         # 32 bit align gdt_desc.address
+ENTRY(early_gdt_descr)
+	.word GDT_ENTRIES*8-1
+	.long per_cpu__gdt_page         /* Overwritten for secondary CPUs */
+
+/*
+ * The boot_gdt must mirror the equivalent in setup.S and is
+ * used only for booting.
+ */
+	.align L1_CACHE_BYTES
+ENTRY(boot_gdt)
+	.fill GDT_ENTRY_BOOT_CS,8,0
+	.quad 0x00cf9a000000ffff        /* kernel 4GB code at 0x00000000 */
+	.quad 0x00cf92000000ffff        /* kernel 4GB data at 0x00000000 */
+
+
+
