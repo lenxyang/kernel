@@ -1,6 +1,9 @@
 #include <asm/e820.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <asm/string.h>
+#include <asm/boot.h>
+#include <asm/setup.h>
 
 /*
  * The e820 map is the map that gets modified e.g. with command line parameters
@@ -43,6 +46,43 @@ void __init e820_add_region(u64 start, u64 size, int type)
   __e820_add_region(&e820, start, size, type);
 }
 
+static int __init __append_e820_map(struct e820entry *biosmap, int nr_map)
+{
+  while (nr_map) {
+    u64 start = biosmap->addr;
+    u64 size = biosmap->size;
+    u64 end = start + size;
+    u32 type = biosmap->type;
+
+    /* Overflow in 64 bits? Ignore the memory map. */
+    if (start > end)
+      return -1;
+
+    e820_add_region(start, size, type);
+
+    biosmap++;
+    nr_map--;
+  }
+  return 0;
+}
+
+/*
+ * Copy the BIOS e820 map into a safe place.
+ *
+ * Sanity-check it while we're at it..
+ *
+ * If we're lucky and live on a modern system, the setup code
+ * will have given us a memory map that we can use to properly
+ * set up memory.  If we aren't, we'll fake a memory map.
+ */
+static int __init append_e820_map(struct e820entry *biosmap, int nr_map)
+{
+  /* Only one memory region (or negative)? Ignore it */
+  if (nr_map < 2)
+    return -1;
+
+  return __append_e820_map(biosmap, nr_map);
+}
 
 static void __init e820_print_type(u32 type)
 {
@@ -83,4 +123,207 @@ void __init e820_print_map(char *who)
   }
 }
 
+int __init sanitize_e820_map(struct e820entry *biosmap, int max_nr_map,
+                             u32 *pnr_map)
+{
+  struct change_member {
+    struct e820entry *pbios; /* pointer to original bios entry */
+    unsigned long long addr; /* address for this change point */
+  };
+  static struct change_member change_point_list[2*E820_X_MAX] __initdata;
+  static struct change_member *change_point[2*E820_X_MAX] __initdata;
+  static struct e820entry *overlap_list[E820_X_MAX] __initdata;
+  static struct e820entry new_bios[E820_X_MAX] __initdata;
+  struct change_member *change_tmp;
+  unsigned long current_type, last_type;
+  unsigned long long last_addr;
+  int chgidx, still_changing;
+  int overlap_entries;
+  int new_bios_entry;
+  int old_nr, new_nr, chg_nr;
+  int i;
 
+  /* if there's only one memory region, don't bother */
+  if (*pnr_map < 2)
+    return -1;
+
+  old_nr = *pnr_map;
+  BUG_ON(old_nr > max_nr_map);
+
+  /* bail out if we find any unreasonable addresses in bios map */
+  for (i = 0; i < old_nr; i++)
+    if (biosmap[i].addr + biosmap[i].size < biosmap[i].addr)
+      return -1;
+
+  /* create pointers for initial change-point information (for sorting) */
+  for (i = 0; i < 2 * old_nr; i++)
+    change_point[i] = &change_point_list[i];
+  /* record all known change-points (starting and ending addresses),
+     omitting those that are for empty memory regions */
+  chgidx = 0;
+  for (i = 0; i < old_nr; i++)    {
+    if (biosmap[i].size != 0) {
+      change_point[chgidx]->addr = biosmap[i].addr;
+      change_point[chgidx++]->pbios = &biosmap[i];
+      change_point[chgidx]->addr = biosmap[i].addr +
+          biosmap[i].size;
+      change_point[chgidx++]->pbios = &biosmap[i];
+    }
+  }
+  chg_nr = chgidx;
+
+  /* sort change-point list by memory addresses (low -> high) */
+  still_changing = 1;
+  while (still_changing)  {
+    still_changing = 0;
+    for (i = 1; i < chg_nr; i++)  {
+      unsigned long long curaddr, lastaddr;
+      unsigned long long curpbaddr, lastpbaddr;
+
+      curaddr = change_point[i]->addr;
+      lastaddr = change_point[i - 1]->addr;
+      curpbaddr = change_point[i]->pbios->addr;
+      lastpbaddr = change_point[i - 1]->pbios->addr;
+
+      /*
+       * swap entries, when:
+       *
+       * curaddr > lastaddr or
+       * curaddr == lastaddr and curaddr == curpbaddr and
+       * lastaddr != lastpbaddr
+       */
+      if (curaddr < lastaddr ||
+          (curaddr == lastaddr && curaddr == curpbaddr &&
+           lastaddr != lastpbaddr)) {
+        change_tmp = change_point[i];
+        change_point[i] = change_point[i-1];
+        change_point[i-1] = change_tmp;
+        still_changing = 1;
+      }
+    }
+  }
+
+  /* create a new bios memory map, removing overlaps */
+  overlap_entries = 0;     /* number of entries in the overlap table */
+  new_bios_entry = 0;      /* index for creating new bios map entries */
+  last_type = 0;           /* start with undefined memory type */
+  last_addr = 0;           /* start with 0 as last starting address */
+
+  /* loop through change-points, determining affect on the new bios map */
+  for (chgidx = 0; chgidx < chg_nr; chgidx++) {
+    /* keep track of all overlapping bios entries */
+    if (change_point[chgidx]->addr ==
+        change_point[chgidx]->pbios->addr) {
+      /*
+       * add map entry to overlap list (> 1 entry
+       * implies an overlap)
+       */
+      overlap_list[overlap_entries++] =
+          change_point[chgidx]->pbios;
+    } else {
+      /*
+       * remove entry from list (order independent,
+       * so swap with last)
+       */
+      for (i = 0; i < overlap_entries; i++) {
+        if (overlap_list[i] ==
+            change_point[chgidx]->pbios)
+          overlap_list[i] =
+              overlap_list[overlap_entries-1];
+      }
+      overlap_entries--;
+    }
+    /*
+     * if there are overlapping entries, decide which
+     * "type" to use (larger value takes precedence --
+     * 1=usable, 2,3,4,4+=unusable)
+     */
+    current_type = 0;
+    for (i = 0; i < overlap_entries; i++)
+      if (overlap_list[i]->type > current_type)
+        current_type = overlap_list[i]->type;
+    /*
+     * continue building up new bios map based on this
+     * information
+     */
+    if (current_type != last_type)  {
+      if (last_type != 0)      {
+        new_bios[new_bios_entry].size =
+            change_point[chgidx]->addr - last_addr;
+        /*
+         * move forward only if the new size
+         * was non-zero
+         */
+        if (new_bios[new_bios_entry].size != 0)
+          /*
+           * no more space left for new
+           * bios entries ?
+           */
+          if (++new_bios_entry >= max_nr_map)
+            break;
+      }
+      if (current_type != 0)  {
+        new_bios[new_bios_entry].addr =
+            change_point[chgidx]->addr;
+        new_bios[new_bios_entry].type = current_type;
+        last_addr = change_point[chgidx]->addr;
+      }
+      last_type = current_type;
+    }
+  }
+  /* retain count for new bios entries */
+  new_nr = new_bios_entry;
+
+  /* copy new bios mapping into original location */
+  memcpy(biosmap, new_bios, new_nr * sizeof(struct e820entry));
+  *pnr_map = new_nr;
+
+  return 0;
+}
+
+
+char *__init default_machine_specific_memory_setup(void) {
+  char *who = "BIOS-e820";
+  u32 new_nr;
+  /*
+   * Try to copy the BIOS-supplied E820-map.
+   *
+   * Otherwise fake a memory map; one section from 0k->640k,
+   * the next section from 1mb->appropriate_mem_k
+   */
+  new_nr = boot_params.e820_entries;
+  sanitize_e820_map(boot_params.e820_map,
+                    ARRAY_SIZE(boot_params.e820_map),
+                    &new_nr);
+  boot_params.e820_entries = new_nr;
+  if (append_e820_map(boot_params.e820_map, boot_params.e820_entries)
+      < 0) {
+    u64 mem_size;
+
+    /* compare results from other methods and take the greater */
+    if (boot_params.alt_mem_k
+        < boot_params.screen_info.ext_mem_k) {
+      mem_size = boot_params.screen_info.ext_mem_k;
+      who = "BIOS-88";
+    } else {
+      mem_size = boot_params.alt_mem_k;
+      who = "BIOS-e801";
+    }
+
+    e820.nr_map = 0;
+    e820_add_region(0, LOWMEMSIZE(), E820_RAM);
+    e820_add_region(HIGH_MEMORY, mem_size << 10, E820_RAM);
+  }
+
+  /* In case someone cares... */
+  return who;
+}
+
+void __init  setup_memory_map(void) {
+  char *who;
+  // who = x86_init.resources.memory_setup();
+  default_machine_specific_memory_setup();
+  memcpy(&e820_saved, &e820, sizeof(struct e820map));
+  printk(KERN_INFO "BIOS-provided physical RAM map:\n");
+  e820_print_map(who);
+}

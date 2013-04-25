@@ -4,6 +4,8 @@
 #include <linux/hash.h>
 #include <linux/highmem.h>
 
+#ifdef CONFIG_HIGHMEM
+
 #define PA_HASH_ORDER   7
 
 struct page_address_map {
@@ -21,6 +23,7 @@ static struct page_address_slot {
 } page_address_htable[1 << PA_HASH_ORDER];
 
 
+/* LAST_PKMAP 的值是 1024 */
 static struct page_address_map page_address_maps[LAST_PKMAP];
 
 void page_address_init(void) {
@@ -36,3 +39,5 @@ void page_address_init(void) {
   }
   spin_lock_init(&pool_lock);
 }
+
+#endif /* CONFIG_HIGHMEM */

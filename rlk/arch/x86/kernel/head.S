@@ -1,12 +1,13 @@
+#include <linux/linkage.h>
 
 #include <asm/segment.h>
 #include <asm/page.h>
 #include <asm/pgtable_types.h>
 #include <asm/processor-flags.h>
+#include <asm/setup.h>
 #include <asm/e820.h>
 #include <asm/asm-offsets.h>
-#include <asm/bootparam.h>
-#include <linux/linkage.h>
+
 
 /* Physical address */
 #define pa(X) ((X) - __PAGE_OFFSET)
@@ -45,7 +46,7 @@ ENTRY(startup_32)
 ``	* copy memory size
 	*/
 	movl	$pa(boot_params), %edi
-	movl	$(BOOTPARAM_SIZE), %ecx
+	movl	$(PARAM_SIZE), %ecx
 	cld
 	rep	movsb	
 

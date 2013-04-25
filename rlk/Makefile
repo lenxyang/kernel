@@ -8,6 +8,8 @@ MAKE = make
 ARCH=x86
 arch_setup=arch/$(ARCH)/boot
 arch_kernel=arch/$(ARCH)/kernel
+arch_lib=arch/$(ARCH)/lib
+arch_mm=arch/$(ARCH)/mm
 
 CONFIG=  -include include/linux/autoconf.h
 
@@ -20,7 +22,7 @@ CFLAGS = -c -g  -I. -Iinclude -Iarch/$(ARCH)/include \
 	-mpreferred-stack-boundary=2 \
 	-mno-sse -mno-mmx -mno-sse2 -mno-3dnow \
 	-m32 -D__KERNEL__ $(CONFIG) \
-	-std=gnu99 -fno-builtin -nostdinc
+	 -fno-builtin -nostdinc
 
 AFLAGS = $(CFLAGS) -D__ASSEMBLY__ -fomit-frame-pointer \
 
@@ -31,6 +33,12 @@ MMCFLAGS = $(CFLAGS) -Imm
 
 ARCH_KERNEL_CFLAGS = $(CFLAGS)
 ARCH_KERNEL_AFLAGS = $(AFLAGS)
+
+ARCH_MM_CFLAGS = $(CFLAGS)
+ARCH_MM_AFLAGS = $(AFLAGS)
+
+ARCH_LIB_CFLAGS = $(CFLAGS)
+ARCH_LIB_AFLAGS = $(AFLAGS)
 
 KERNEL_CFLAGS      = $(CFLAGS)
 MM_CFLAGS          = $(CFLAGS) -Imm
@@ -44,12 +52,16 @@ setup_objs = $(arch_setup)/main.c.o $(arch_setup)/memory.c.o \
 	$(arch_setup)/copy.S.o $(arch_setup)/header.S.o \
 	$(arch_setup)/printf.c.o $(arch_setup)/string.c.o $(arch_setup)/tty.c.o
 
-arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o 
-arch_mm_objs     =
-arch_lib_objs    =
-kernel_objs      =
+arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
+		$(arch_kernel)/e820.c.o $(arch_kernel)/paravirt-spinlocks.c.o \
+		$(arch_kernel)/paravirt.c.o $(arch_kernel)/paravirt_patch_32.c.o
+arch_mm_objs     = $(arch_mm)/highmem.c.o
+arch_lib_objs    = $(arch_lib)/delay.c.o $(arch_lib)/checksum_32.S.o \
+		$(arch_lib)/memcpy_32.c.o $(arch_lib)/strstr_32.c.o \
+		$(arch_lib)/string_32.c.o
+kernel_objs      = kernel/printk.c.o
 mm_objs          = mm/highmem.c.o
-lib_objs         =
+lib_objs         = 
 init_objs        = init/main.c.o
 
 binary := setup.bin vmlinux.bin
@@ -63,21 +75,45 @@ install: $(binary) $(debugs)
 
 ###################################################
 # setup
-vmlinux.bin: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs) $(arch_kernel)/vmlinux.lds
+vmlinux.bin: $(arch_kernel_objs) $(arch_mm_objs)  $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs) $(arch_kernel)/vmlinux.lds
 	$(LD) -s -T $(arch_kernel)/vmlinux.lds $? -o $@
 
-vmlinux.gdb: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs) $(arch_kernel)/vmlinux.lds
+vmlinux.gdb: $(arch_kernel_objs)  $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs) $(arch_kernel)/vmlinux.lds
 	$(LD) -T $(arch_kernel)/vmlinux.lds $? -o $@
 
 # arch/x86/kernel
 $(arch_kernel)/head.S.o: $(arch_kernel)/head.S
 	$(CC) $(ARCH_KERNEL_AFLAGS) $? -o $@
-
 $(arch_kernel)/setup.c.o: $(arch_kernel)/setup.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
-
+$(arch_kernel)/e820.c.o: $(arch_kernel)/e820.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 $(arch_kernel)/vmlinux.lds: $(arch_kernel)/vmlinux.lds.S
 	$(CPP) $(CFLAGS) -P -C  -D__ASSEMBLY__  -o $@ $<
+$(arch_kernel)/paravirt-spinlocks.c.o :$(arch_kernel)/paravirt-spinlocks.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+$(arch_kernel)/paravirt.c.o: $(arch_kernel)/paravirt.c
+	$(CC) -fno-stack-protector $(ARCH_KERNEL_CFLAGS) $? -o $@
+$(arch_kernel)/paravirt_patch_32.c.o: $(arch_kernel)/paravirt_patch_32.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+
+$(arch_mm)/highmem.c.o: $(arch_mm)/highmem.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+
+$(arch_lib)/delay.c.o: $(arch_lib)/delay.c
+	$(CC) $(ARCH_LIB_CFLAGS) $? -o $@
+$(arch_lib)/checksum_32.S.o: $(arch_lib)/checksum_32.S
+	$(CC) $(ARCH_LIB_AFLAGS) $? -o $@
+$(arch_lib)/memcpy_32.c.o: $(arch_lib)/memcpy_32.c
+	$(CC) $(ARCH_LIB_CFLAGS) $? -o $@
+$(arch_lib)/strstr_32.c.o: $(arch_lib)/strstr_32.c
+	$(CC) $(ARCH_LIB_CFLAGS) $? -o $@
+$(arch_lib)/string_32.c.o: $(arch_lib)/string_32.c
+	$(CC) $(ARCH_LIB_CFLAGS) $? -o $@
+
+# init
+kernel/printk.c.o: kernel/printk.c
+	$(CC) $(KERNEL_CFLAGS) -o $@ $<
 
 # init
 init/main.c.o: init/main.c
@@ -147,6 +183,7 @@ clean:
 	rm -f $(arch_setup)/*.o
 	rm -f $(arch_kernel)/*.o
 	rm -f $(arch_kernel)/vmlinux.lds
+	rm -f $(arch_lib)/*.o
 	rm -f mm/*.o
 	rm -f init/*.o
 	rm -f setup.gdb setup.bin
