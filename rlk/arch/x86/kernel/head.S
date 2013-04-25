@@ -115,9 +115,7 @@ page_pde_offset = (__PAGE_OFFSET >> 20)
 	movl	$0, %eax
 	call	__puts
 
-noloop:
-	jmp	noloop
-/*	call	start_kernel */
+	call	start_kernel
 
 
 __clean_screen:

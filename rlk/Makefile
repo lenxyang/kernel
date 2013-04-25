@@ -39,6 +39,9 @@ MMCFLAGS = $(CFLAGS) -Imm
 ARCH_KERNEL_CFLAGS = $(CFLAGS)
 ARCH_KERNEL_AFLAGS = $(AFLAGS)
 
+KERNEL_CFLAGS      = $(CFLAGS)
+MM_CFLAGS          = $(CFLAGS) -Imm
+INIT_CFLAGS        = $(CFLAGS)
 
 all: install
 
@@ -52,9 +55,9 @@ arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o
 arch_mm_objs     =
 arch_lib_objs    =
 kernel_objs      =
-mm_objs          =
+mm_objs          = mm/highmem.c.o
 lib_objs         =
-init_objs        =
+init_objs        = init/main.c.o
 
 binary := setup.bin vmlinux.bin
 debugs := setup.gdb vmlinux.gdb
@@ -73,6 +76,7 @@ vmlinux.bin: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs)
 vmlinux.gdb: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs) $(arch_kernel)/vmlinux.lds
 	$(LD) -T $(arch_kernel)/vmlinux.lds $? -o $@
 
+# arch/x86/kernel
 $(arch_kernel)/head.S.o: $(arch_kernel)/head.S
 	$(CC) $(ARCH_KERNEL_AFLAGS) $? -o $@
 
@@ -81,6 +85,14 @@ $(arch_kernel)/setup.c.o: $(arch_kernel)/setup.c
 
 $(arch_kernel)/vmlinux.lds: $(arch_kernel)/vmlinux.lds.S
 	$(CPP) $(CFLAGS) -P -C  -D__ASSEMBLY__  -o $@ $<
+
+# init
+init/main.c.o: init/main.c
+	$(CC) $(INIT_CFLAGS) -o $@ $<
+
+# mm
+mm/highmem.c.o: mm/highmem.c
+	$(CC) $(MM_CFLAGS)  -o $@ $<
 
 ###################################################
 # setup
@@ -142,5 +154,7 @@ clean:
 	rm -f $(arch_setup)/*.o
 	rm -f $(arch_kernel)/*.o
 	rm -f $(arch_kernel)/vmlinux.lds
+	rm -f mm/*.o
+	rm -f init/*.o
 	rm -f setup.gdb setup.bin
 
