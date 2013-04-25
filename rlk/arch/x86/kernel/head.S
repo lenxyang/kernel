@@ -32,11 +32,6 @@ ENTRY(startup_32)
 	movl	%eax, %ss
 
 	/*
-	* 修改内核指针
-	*/
-	movl	kernel_stack_top, %esp
-
-	/*
 	* memoy
 	*/
 	xor	%eax, %eax
@@ -47,7 +42,7 @@ ENTRY(startup_32)
 	rep	stosb
 
 	/*
-	* copy memory size
+``	* copy memory size
 	*/
 	movl	$pa(boot_params), %edi
 	movl	$(BOOTPARAM_SIZE), %ecx
@@ -89,12 +84,13 @@ page_pde_offset = (__PAGE_OFFSET >> 20)
 	jb	10b
 
 	/**
-	* 为全局变量 _brk_end 复制，它与 _brk_base 的差
-	* 表示当前已经使用的自由存储区。
-	* max_pfn_mapped 完成映射的pf的个数
+	* edi 表示的 pgd 对应的地址
+	* 下面的语句为 pgd 新增一项 
 	*/
 	addl	$__PAGE_OFFSET, %edi
 	movl 	%edi, pa(_brk_end)
+	
+	/* max_pfn_mapped 完成映射的pf的个数 */
 	shrl 	$12, %eax
 	movl 	%eax, pa(max_pfn_mapped)
 
@@ -111,14 +107,16 @@ page_pde_offset = (__PAGE_OFFSET >> 20)
 
 	
 	ljmp	$(__BOOT_CS), $1f
-1:	
+1:
+
+	movl	$kernel_stack_top, %esp
 	call	__clean_screen
 	movl	$(msg), %esi
 	movl	$0, %eax
 	call	__puts
 
-2:
-	jmp	2
+noloop:
+	jmp	noloop
 /*	call	start_kernel */
 
 
