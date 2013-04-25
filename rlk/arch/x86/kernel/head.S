@@ -52,6 +52,9 @@ startup_32:
 	cld
 	rep	movsb	
 
+	/**
+	* 初始化页表
+	*/
 page_pde_offset = (__PAGE_OFFSET >> 20)
 	/* pg0 保存了vmlinux结束的位置, 通过寄存%edi得到了vmlinux的大小
 	* 同时 pg0 将作为pte的其实地址

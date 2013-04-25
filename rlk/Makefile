@@ -5,9 +5,9 @@ CPP  = $(CC) -E
 LD   = /cross/i386-linux-elf/gcc-core-static/bin/i386-lenxyang-elf-ld
 MAKE = make
 
-arch=x86
-arch_setup=arch/$(arch)/boot
-arch_kernel=arch/$(arch)/kernel
+ARCH=x86
+arch_setup=arch/$(ARCH)/boot
+arch_kernel=arch/$(ARCH)/kernel
 
 CONFIG= -DCONFIG_X86_32 \
 	-DCONFIG_X86_L1_CACHE_BYTES=64\
@@ -15,7 +15,7 @@ CONFIG= -DCONFIG_X86_32 \
 	-DCONFIG_X86_L1_CACHE_SHIFT=5 \
 	-DCONFIG_PAGE_OFFSET=0xC0000000
 
-CFLAGS = -c -g  -I. -Iinclude -Iarch/$(arch)/include \
+CFLAGS = -c -g  -I. -Iinclude -Iarch/$(ARCH)/include \
 	-Wall -Wstrict-prototypes \
 	-march=i386 -mregparm=3 \
 	-ffreestanding \
@@ -64,10 +64,10 @@ install: $(binary) $(debugs)
 
 ###################################################
 # setup
-vmlinux.bin: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs)
+vmlinux.bin: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs) $(arch_kernel)/vmlinux.lds
 	$(LD) -s -T $(arch_kernel)/vmlinux.lds $? -o $@
 
-vmlinux.gdb: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs)
+vmlinux.gdb: $(arch_kernel_objs) $(arch_mm_objs) $(arch_lib_objs) $(kernel_objs) $(lib_objs) $(mm_objs) $(init_objs) $(arch_kernel)/vmlinux.lds
 	$(LD) -T $(arch_kernel)/vmlinux.lds $? -o $@
 
 $(arch_kernel)/head.S.o: $(arch_kernel)/head.S
@@ -75,6 +75,9 @@ $(arch_kernel)/head.S.o: $(arch_kernel)/head.S
 
 $(arch_kernel)/setup.c.o: $(arch_kernel)/setup.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+
+$(arch_kernel)/vmlinux.lds: $(arch_kernel)/vmlinux.lds.S
+	$(CPP) $(CFLAGS) -P -C  -D__ASSEMBLY__  -o $@ $<
 
 ###################################################
 # setup
@@ -135,4 +138,6 @@ binternaldbg:
 clean:
 	rm -f $(arch_setup)/*.o
 	rm -f $(arch_kernel)/*.o
+	rm -f $(arch_kernel)/vmlinux.lds
 	rm -f setup.gdb setup.bin
+
