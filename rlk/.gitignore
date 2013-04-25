@@ -3,6 +3,7 @@
 *.o
 *.lo
 *.a
+*.lds
 vm
 third_party/gmock-1.6.0/
 third_party/gtest-1.6.0/

@@ -1,8 +1,12 @@
-#include <asm/asm-offsets.h>
-#include <asm/page.h>
-#include <asm-generic/vmlinux.lds.h>	
 
 #define LOAD_OFFSET __PAGE_OFFSET
+	
+#include <asm/asm-offsets.h>
+#include <asm/page.h>
+#include <asm/boot.h>
+#include <asm-generic/vmlinux.lds.h>	
+
+
 
 #undef i386
 OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
@@ -41,11 +45,19 @@ SECTIONS {
        *(.bss)
        }
   __bss_stop = .;
-  __end = .;
 
   /* This is where the kernel creates the early boot page tables */
-  . = ALIGN(4096);
-  pg0 = .;
+  . = ALIGN(PAGE_SIZE)		;
+  .brk : AT(ADDR(.brk) - LOAD_OFFSET) {
+	__brk_base = .;
+	. += 64 * 1024;         /* 64k alignment slop space */
+	*(.brk_reservation)     /* areas brk users have reserved */
+	__brk_limit = .;
+  }
+
+  .end : AT(ADDR(.end) - LOAD_OFFSET) {
+	_end = .;
+  }
 
   /* Stabs debugging sections.  */
   .stab 0 : { *(.stab) }
