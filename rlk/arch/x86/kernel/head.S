@@ -1,8 +1,10 @@
 
 #include <asm/segment.h>
 #include <asm/page.h>
+#include <asm/pgtable_types.h>
 #include <asm/processor-flags.h>
 #include <asm/e820.h>
+#include <asm/asm-offsets.h>
 #include <asm/bootparam.h>
 #include <linux/linkage.h>
 
@@ -59,9 +61,9 @@ page_pde_offset = (__PAGE_OFFSET >> 20)
 	/* pg0 保存了vmlinux结束的位置, 通过寄存%edi得到了vmlinux的大小
 	* 同时 pg0 将作为pte的其实地址
 	*/
-	movl	$(__brk_base - __PAGE_OFFSET), %edi
-	movl	$(swapper_pg_dir - __PAGE_OFFSET), %edx
-	movl	$0x007, %eax /* attributes */
+	movl	$pa(__brk_base), %edi
+	movl	$pa(swapper_pg_dir), %edx
+	movl	$PTE_IDENT_ATTR, %eax /* attributes */
 
 10:
 	/* edi 为物理内存，+0x007 编程带有属性的pde item*/
@@ -70,8 +72,6 @@ page_pde_offset = (__PAGE_OFFSET >> 20)
 	/*对应另外一个PDE表，他的地址在0xC00处，在后面它将建立完整的PDE*/
 	movl	%ecx, page_pde_offset(%edx)
 	addl	$4,%edx
-
-	/* pte 1024 项 */
 	movl	$1024, %ecx
 11:
 	stosl
@@ -83,11 +83,24 @@ page_pde_offset = (__PAGE_OFFSET >> 20)
 	* 此处代码初始化
 	* 也就是说初始化的表象需要覆盖整个vmlinux加载的地址
 	* 及PTE所在的地址。覆盖完毕后结束初始化
-	* 128 * 1024 表示， pg0 处包含 128个 pde项
 	*/
-	leal	(INIT_MAP_BEYOND_END+0x007)(%edi), %ebp
+	movl	$pa(_end) + (INIT_MAP_BEYOND_END+PTE_IDENT_ATTR), %ebp
 	cmpl	%ebp, %eax
 	jb	10b
+
+	/**
+	* 为全局变量 _brk_end 复制，它与 _brk_base 的差
+	* 表示当前已经使用的自由存储区。
+	* max_pfn_mapped 完成映射的pf的个数
+	*/
+	addl	$__PAGE_OFFSET, %edi
+	movl 	%edi, pa(_brk_end)
+	shrl 	$12, %eax
+	movl 	%eax, pa(max_pfn_mapped)
+
+	/* Do early initialization of the fixmap area */
+	movl 	$pa(swapper_pg_fixmap)+PDE_IDENT_ATTR,%eax
+	movl 	%eax,pa(swapper_pg_dir+0xffc)
 		
 	/* 开启paging */
 	movl	$(swapper_pg_dir - __PAGE_OFFSET), %eax
@@ -159,11 +172,22 @@ boot_gdt_descr:
 	.word	0
 	.long	0
 
-	.section ".bss"
+/*
+ * BSS section
+ */
+__PAGE_ALIGNED_BSS
+        .align PAGE_SIZE_asm
 ENTRY(swapper_pg_dir)
-	.fill	1024,4,0
+        .fill 1024,4,0
+swapper_pg_fixmap:
+        .fill 1024,4,0
+#ifdef CONFIG_X86_TRAMPOLINE
+ENTRY(trampoline_pg_dir)
+        .fill 1024,4,0
+#endif
 ENTRY(empty_zero_page)
-	.fill	4096,1,0
+        .fill 4096,1,0
+	
 ENTRY(kernel_stack)
 	.fill	4096,1,0
 ENTRY(kernel_stack_top)
