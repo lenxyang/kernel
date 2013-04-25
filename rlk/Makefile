@@ -9,14 +9,7 @@ ARCH=x86
 arch_setup=arch/$(ARCH)/boot
 arch_kernel=arch/$(ARCH)/kernel
 
-CONFIG= -DCONFIG_X86_32 \
-	-DCONFIG_X86_L1_CACHE_BYTES=64\
-	-DCONFIG_X86_INTERNODE_CACHE_BYTES=64 \
-	-DCONFIG_X86_L1_CACHE_SHIFT=5 \
-	-DCONFIG_HZ=250 \
-	-DCONFIG_PHYSICAL_START=0x100000 \
-	-DCONFIG_PHYSICAL_ALIGN=0x100000 \
-	-DCONFIG_PAGE_OFFSET=0xC0000000
+CONFIG=  -include include/linux/autoconf.h
 
 CFLAGS = -c -g  -I. -Iinclude -Iarch/$(ARCH)/include \
 	-Wall -Wstrict-prototypes \
