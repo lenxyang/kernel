@@ -1,5 +1,5 @@
 #include <linux/types.h>
-#include <asm/boot.h>
+#include <boot.h>
 #include <asm/segment.h>
 
 extern void protected_mode_jump(void);

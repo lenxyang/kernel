@@ -12,7 +12,7 @@
  * Very basic string functions
  */
 
-#include <asm/boot.h>
+#include <boot.h>
 
 int strcmp(const char *str1, const char *str2)
 {

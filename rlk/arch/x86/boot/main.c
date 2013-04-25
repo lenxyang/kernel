@@ -1,4 +1,4 @@
-#include <asm/boot.h>
+#include <boot.h>
 #include <asm/bootparam.h>
 
 struct boot_params boot_params __attribute__((aligned(16)));

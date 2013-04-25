@@ -1,25 +1,32 @@
+#include <asm/asm-offsets.h>
+#include <asm/page.h>
+#include <asm-generic/vmlinux.lds.h>	
+
+#define LOAD_OFFSET __PAGE_OFFSET
+
+#undef i386
 OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
 OUTPUT_ARCH(i386)
 ENTRY(startup_32)
 
 SECTIONS {
-  . = (0xC0000000) + 0x100000 ;
+  . = LOAD_OFFSET + LOAD_PHYSICAL_ADDR ;
+  .phys_startup_32 = startup_32 - LOAD_OFFSET ;
+	
   /* read-only */
-  _text = .; /* Text and read-only data */
-  .text : {
+  
+  .text : AT(ADDR(.text) - LOAD_OFFSET) {
+	_text = .; /* Text and read-only data */
         *(.text)
         *(.altinstructions)
         *(.altinstr_replacement)
         } = 0x9090
   _etext = .; /* End of text section */
 
-  /* writeable */
-  .rodata ALIGN(16) : {
-          *(.rodata)
-          *(.init.rodata)
-          }
+  RO_DATA(PAGE_SIZE)
 
-  .data : { /* Data */
+  .data : AT(ADDR(.data) - LOAD_OFFSET) { /* Data */
+	_sdata = .;
         *(.init.data)
         *(.data)
         }

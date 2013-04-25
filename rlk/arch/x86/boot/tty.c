@@ -1,4 +1,4 @@
-#include <asm/boot.h>
+#include <boot.h>
 
 void cleanscreen(void) {
   struct biosregs ireg;

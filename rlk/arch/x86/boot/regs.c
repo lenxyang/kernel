@@ -1,4 +1,4 @@
-#include <asm/boot.h>
+#include <boot.h>
 #include <asm/processor-flags.h>
 
 void initregs(struct biosregs *reg)

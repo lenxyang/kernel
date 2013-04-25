@@ -15,7 +15,7 @@
  *
  */
 
-#include <asm/boot.h>
+#include <boot.h>
 #include <linux/stddef.h>
 #include <linux/stdarg.h>
 

@@ -1,4 +1,4 @@
-#include <asm/boot.h>
+#include <boot.h>
 #include <linux/types.h>
 #include <linux/kernel.h>
 #include <asm/bootparam.h>

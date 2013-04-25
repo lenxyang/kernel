@@ -29,7 +29,7 @@ CFLAGS = -c -g  -I. -Iinclude -Iarch/$(ARCH)/include \
 AFLAGS = $(CFLAGS) -D__ASSEMBLY__ -fomit-frame-pointer \
 
 
-BOOTCFLAGS = $(CFLAGS) -include linux/gcc16code.h
+BOOTCFLAGS = $(CFLAGS) -include linux/gcc16code.h -I$(arch_setup)
 BOOTAFLAGS = $(BOOTCFLAGS) -D__ASSEMBLY__
 MMCFLAGS = $(CFLAGS) -Imm
 
