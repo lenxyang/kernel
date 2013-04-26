@@ -56,9 +56,6 @@ arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
 		$(arch_kernel)/e820.c.o $(arch_kernel)/entry.S.o \
 		$(arch_kernel)/io_delay.c.o $(arch_kernel)/rtc.c.o 
 
-paravirt_objs = $(arch_kernel)/paravirt-spinlocks.c.o \
-		$(arch_kernel)/paravirt.c.o $(arch_kernel)/paravirt_patch_32.c.o
-
 arch_mm_objs     = $(arch_mm)/highmem.c.o $(arch_mm)/pgtable.c.o \
 		$(arch_mm)/pgtable_32.c.o $(arch_mm)/init_32.c.o
 
@@ -98,12 +95,6 @@ $(arch_kernel)/e820.c.o: $(arch_kernel)/e820.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 $(arch_kernel)/vmlinux.lds: $(arch_kernel)/vmlinux.lds.S
 	$(CPP) $(CFLAGS) -P -C  -D__ASSEMBLY__  -o $@ $<
-$(arch_kernel)/paravirt-spinlocks.c.o :$(arch_kernel)/paravirt-spinlocks.c
-	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
-$(arch_kernel)/paravirt.c.o: $(arch_kernel)/paravirt.c
-	$(CC) -fno-stack-protector $(ARCH_KERNEL_CFLAGS) $? -o $@
-$(arch_kernel)/paravirt_patch_32.c.o: $(arch_kernel)/paravirt_patch_32.c
-	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 $(arch_kernel)/io_delay.c.o: $(arch_kernel)/io_delay.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 $(arch_kernel)/rtc.c.o: $(arch_kernel)/rtc.c
@@ -205,7 +196,18 @@ clean:
 	rm -f $(arch_kernel)/vmlinux.lds
 	rm -f $(arch_lib)/*.o
 	rm -f $(arch_mm)/*.o
+	rm -f kernel/*.o
 	rm -f mm/*.o
 	rm -f init/*.o
 	rm -f setup.gdb setup.bin
 
+
+# 废弃的目标(暂时)
+paravirt_objs = $(arch_kernel)/paravirt-spinlocks.c.o \
+		$(arch_kernel)/paravirt.c.o $(arch_kernel)/paravirt_patch_32.c.o
+$(arch_kernel)/paravirt-spinlocks.c.o :$(arch_kernel)/paravirt-spinlocks.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+$(arch_kernel)/paravirt.c.o: $(arch_kernel)/paravirt.c
+	$(CC) -fno-stack-protector $(ARCH_KERNEL_CFLAGS) $? -o $@
+$(arch_kernel)/paravirt_patch_32.c.o: $(arch_kernel)/paravirt_patch_32.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@

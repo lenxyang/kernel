@@ -24,7 +24,7 @@ SECTIONS {
         *(.text)
         *(.altinstructions)
         *(.altinstr_replacement)
-        } = 0x9090
+        }
   _etext = .; /* End of text section */
 
   RO_DATA(PAGE_SIZE)
