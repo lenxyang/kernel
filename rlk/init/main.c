@@ -5,7 +5,8 @@
 asmlinkage void start_kernel(void) {
 
   page_address_init();
-  
+
+  setup_arch("");
   while (1) {
   }
 }

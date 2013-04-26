@@ -20,5 +20,11 @@ struct cpuinfo_x86 boot_cpu_data = {0, 0, 0, 0, -1, 1, 0, 0, -1};
 
 
 void setup_arch(char **cmdline_p) {
+  /**
+   * setup_memory_map 定义在文件 arch/x86/kernel/e820.c 当中
+   * 此函数的作用是 
+   * 1. 将 boot_params 当中的 e820_map 保存在全局变量 e820 当中
+   * 2. 按照
+   */
   setup_memory_map();
 }
