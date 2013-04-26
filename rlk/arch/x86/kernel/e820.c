@@ -1,6 +1,9 @@
-#include <asm/e820.h>
+
 #include <linux/kernel.h>
 #include <linux/init.h>
+#include <linux/mm.h>
+
+#include <asm/e820.h>
 #include <asm/string.h>
 #include <asm/boot.h>
 #include <asm/setup.h>
@@ -244,6 +247,17 @@ static struct early_res early_res[MAX_EARLY_RES] __initdata = {
   {}
 };
 
+static void __init drop_range(int i) {
+  int j;
+  for (j = i + 1; j < MAX_EARLY_RES && early_res[i].end; j++)
+    ;
+
+  /* 此处为区域重叠的 memmove */
+  memmove(&early_res[i], &early_res[i + 1],
+          (j - 1 - i) * sizeof(struct early_res));
+  early_res[j-1].end = 0;
+}
+
 static void __init drop_overlaps_that_are_ok(u64 start, u64 end) {
   int i;
   struct early_res *r;
@@ -286,6 +300,55 @@ static void __init drop_overlaps_that_are_ok(u64 start, u64 end) {
       reserve_early_overlap_ok(upper_start, upper_end, name);
     }
   }
+}
+
+/**
+ * 函数 find_overlapped_early
+ * 此函数的为何包含一个 overlapped
+ */
+static int __init find_overlapped_early(u64 start, u64 end) {
+  int i;
+  struct early_res *r;
+
+  for (i = 0; i < MAX_EARLY_RES && early_res[i].end; i++) {
+    r = &early_res[i];
+    if (end > r->start && start < r->end) {
+      break;
+    }
+  }
+
+  return i;
+}
+
+static void __init __reserve_early(u64 start, u64 end, char* name,
+                                   int overlap_ok) {
+  int i;
+  struct early_res *r;
+
+  i = find_overlapped_early(start, end);
+  if (i >= MAX_EARLY_RES) {
+    panic("Too many early reservation.");
+  }
+
+  r = &early_res[i];
+  if (r->end) {
+    panic("Overlapping early reservations "
+          "%llx-%llx %s to %llx-%llx %s\n",
+          start, end - 1, name ? name: "", r->start,
+          r->end - 1, r->name);
+  }
+  
+  r->start = start;
+  r->end = end;
+  r->overlap_ok = overlap_ok;
+  if (name) {
+    strncpy(r->name, name, sizeof(r->name) - 1);
+  }
+}
+
+void __init reserve_early_overlap_ok(u64 start, u64 end, char* name) {
+  drop_overlaps_that_are_ok(start, end);
+  __reserve_early(start, end, name, 1);
 }
 
 void __init reserve_early(u64 start, u64 end, char* name) {

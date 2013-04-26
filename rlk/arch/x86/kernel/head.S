@@ -19,8 +19,6 @@
 	.extern __bss_start
 	.extern __bss_stop
 	.extern boot_params
-	.extern start_kernel
-	.global	startup_32
 	.text
 ENTRY(startup_32)
 	cld
@@ -117,7 +115,7 @@ page_pde_offset = (__PAGE_OFFSET >> 20)
 	movl	$0, %eax
 	call	__puts
 
-	call	start_kernel
+	call	*initial_code
 
 
 __clean_screen:
@@ -170,8 +168,12 @@ boot_gdt_descr:
 	.long 	boot_gdt_table - __PAGE_OFFSET
 	.word	0
 	.long	0
-	
 
+.align 4
+ENTRY(initial_code)
+	.long	i386_start_kernel
+ENTRY(initial_page_table)
+	.long	pa(swapper_pg_dir)
 /*
  * BSS section
  */
