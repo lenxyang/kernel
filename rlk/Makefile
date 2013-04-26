@@ -205,6 +205,7 @@ clean:
 	rm -f $(arch_kernel)/vmlinux.lds
 	rm -f $(arch_lib)/*.o
 	rm -f $(arch_mm)/*.o
+	rm -f kernel/*.o
 	rm -f mm/*.o
 	rm -f init/*.o
 	rm -f setup.gdb setup.bin
