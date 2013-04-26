@@ -53,16 +53,19 @@ setup_objs = $(arch_setup)/main.c.o $(arch_setup)/memory.c.o \
 	$(arch_setup)/printf.c.o $(arch_setup)/string.c.o $(arch_setup)/tty.c.o
 
 arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
-		$(arch_kernel)/e820.c.o $(arch_kernel)/paravirt-spinlocks.c.o \
-		$(arch_kernel)/paravirt.c.o $(arch_kernel)/paravirt_patch_32.c.o \
-		$(arch_kernel)/entry.S.o $(arch_kernel)/io_delay.c.o \
-		$(arch_kernel)/rtc.c.o
+		$(arch_kernel)/e820.c.o $(arch_kernel)/entry.S.o \
+		$(arch_kernel)/io_delay.c.o $(arch_kernel)/rtc.c.o 
+
+paravirt_objs = $(arch_kernel)/paravirt-spinlocks.c.o \
+		$(arch_kernel)/paravirt.c.o $(arch_kernel)/paravirt_patch_32.c.o
+
 arch_mm_objs     = $(arch_mm)/highmem.c.o $(arch_mm)/pgtable.c.o \
 		$(arch_mm)/pgtable_32.c.o $(arch_mm)/init_32.c.o
+
 arch_lib_objs    = $(arch_lib)/delay.c.o $(arch_lib)/checksum_32.S.o \
 		$(arch_lib)/memcpy_32.c.o $(arch_lib)/strstr_32.c.o \
 		$(arch_lib)/string_32.c.o
-kernel_objs      = kernel/printk.c.o
+kernel_objs      = kernel/printk.c.o kernel/resource.c.o
 mm_objs          = mm/highmem.c.o  
 lib_objs         = 
 init_objs        = init/main.c.o
@@ -128,6 +131,8 @@ $(arch_lib)/string_32.c.o: $(arch_lib)/string_32.c
 
 # init
 kernel/printk.c.o: kernel/printk.c
+	$(CC) $(KERNEL_CFLAGS) -o $@ $<
+kernel/resource.c.o: kernel/resource.c
 	$(CC) $(KERNEL_CFLAGS) -o $@ $<
 
 # init
@@ -199,6 +204,7 @@ clean:
 	rm -f $(arch_kernel)/*.o
 	rm -f $(arch_kernel)/vmlinux.lds
 	rm -f $(arch_lib)/*.o
+	rm -f $(arch_mm)/*.o
 	rm -f mm/*.o
 	rm -f init/*.o
 	rm -f setup.gdb setup.bin
