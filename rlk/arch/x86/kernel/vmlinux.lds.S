@@ -34,6 +34,7 @@ SECTIONS {
         *(.init.data)
         *(.data)
         }
+  _edata = .;
 
   .text32 ALIGN(4096) : {
           *(.text32)

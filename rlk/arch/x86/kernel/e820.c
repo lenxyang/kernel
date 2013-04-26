@@ -5,6 +5,17 @@
 #include <asm/boot.h>
 #include <asm/setup.h>
 
+#ifdef CONFIG_X86_32
+# ifdef CONFIG_X86_PAE
+#  define MAX_ARCH_PFN          (1ULL<<(36-PAGE_SHIFT))
+# else
+#  define MAX_ARCH_PFN          (1ULL<<(32-PAGE_SHIFT))
+# endif
+#else /* CONFIG_X86_32 */
+# define MAX_ARCH_PFN MAXMEM>>PAGE_SHIFT
+#endif
+
+
 /*
  * The e820 map is the map that gets modified e.g. with command line parameters
  * and that is also registered with modifications in the kernel resource tree
@@ -109,6 +120,52 @@ static void __init e820_print_type(u32 type)
   }
 }
 
+static unsigned long __init e820_end_pfn(unsigned long limit_pfn, unsigned type) {
+  int i;
+  unsigned long last_pfn = 0;
+  unsigned long max_arch_pfn = MAX_ARCH_PFN;
+
+  for (i = 0; i < e820.nr_map; i++) {
+    struct e820entry* ei = &e820.map[i];
+    unsigned long start_pfn;
+    unsigned long end_pfn;
+
+    if (ei->type != type) {
+      continue;
+    }
+
+    // >> PAGE_SHIFT 以便获得 pfn
+    start_pfn = ei->addr >> PAGE_SHIFT;
+    end_pfn = (ei->addr + ei->size) >> PAGE_SHIFT;
+
+    if (start_pfn >= limit_pfn) {
+      continue;
+    }
+
+    if (end_pfn > limit_pfn) {
+      last_pfn = limit_pfn;
+      break;
+    }
+
+    if (end_pfn > last_pfn) {
+      last_pfn = end_pfn;
+    }
+  }
+
+  if (last_pfn > max_arch_pfn) {
+    last_pfn = max_arch_pfn;
+  }
+
+  printk(KERN_INFO "last_pfn = %#lx max_arch_pfn = %#lx\n",
+         last_pfn, max_arch_pfn);
+
+  return last_pfn;
+}
+
+unsigned long __init e820_end_of_ram_pfn(void) {
+  return e820_end_pfn(MAX_ARCH_PFN, E820_RAM);
+}
+
 void __init e820_print_map(char *who)
 {
   int i;
@@ -141,8 +198,14 @@ char *__init default_machine_specific_memory_setup(void) {
                     &new_nr);
   */
   boot_params.e820_entries = new_nr;
+  /**
+   * 此处将 boot_params的e820_map，添加到全局变量 e820当中
+   */
   if (append_e820_map(boot_params.e820_map, boot_params.e820_entries)
       < 0) {
+    /**
+     * 这部分代码不会执行
+     */
     u64 mem_size;
 
     /* compare results from other methods and take the greater */
@@ -162,6 +225,75 @@ char *__init default_machine_specific_memory_setup(void) {
 
   /* In case someone cares... */
   return who;
+}
+
+/**
+ *  early reserved memory areas
+ *
+ */
+#define MAX_EARLY_RES 20
+
+struct early_res {
+  u64 start, end;
+  char name[16];
+  char overlap_ok;
+};
+
+static struct early_res early_res[MAX_EARLY_RES] __initdata = {
+  {0, PAGE_SIZE, "BIOS data page"},
+  {}
+};
+
+static void __init drop_overlaps_that_are_ok(u64 start, u64 end) {
+  int i;
+  struct early_res *r;
+  u64 lower_start, lower_end;
+  u64 upper_start, upper_end;
+  char name[16];
+
+  for (i = 0; i < MAX_EARLY_RES && early_res[i].end; i++) {
+    r = early_res + i;
+
+    if (end <= r->start || start >= r->end) {
+      continue;
+    }
+
+    if (!r->overlap_ok) {
+      return;
+    }
+
+    strncpy(name, r->name, sizeof(name) - 1);
+    lower_start = lower_end = 0;
+    upper_start = upper_end = 0;
+    if (r->start < start) {
+      lower_start = r->start;
+      lower_end = start;
+    }
+
+    if (r->end > end) {
+      upper_start = end;
+      upper_end = r->end;
+    }
+
+    drop_range(i);
+    i--;
+
+    if (lower_end) {
+      reserve_early_overlap_ok(lower_start, lower_end, name);
+    }
+
+    if (upper_end) {
+      reserve_early_overlap_ok(upper_start, upper_end, name);
+    }
+  }
+}
+
+void __init reserve_early(u64 start, u64 end, char* name) {
+  if (start >= end)
+    return;
+
+  drop_overlaps_that_are_ok(start, end);
+  __reserve_early(start, end, name, 0);
 }
 
 void __init  setup_memory_map(void) {

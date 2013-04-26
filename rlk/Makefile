@@ -57,13 +57,14 @@ arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
 		$(arch_kernel)/io_delay.c.o $(arch_kernel)/rtc.c.o 
 
 arch_mm_objs     = $(arch_mm)/highmem.c.o $(arch_mm)/pgtable.c.o \
-		$(arch_mm)/pgtable_32.c.o $(arch_mm)/init_32.c.o
+		$(arch_mm)/pgtable_32.c.o $(arch_mm)/init_32.c.o \
+		$(arch_mm)/ioremap.c.o 
 
 arch_lib_objs    = $(arch_lib)/delay.c.o $(arch_lib)/checksum_32.S.o \
 		$(arch_lib)/memcpy_32.c.o $(arch_lib)/strstr_32.c.o \
 		$(arch_lib)/string_32.c.o
 kernel_objs      = kernel/printk.c.o kernel/resource.c.o
-mm_objs          = mm/highmem.c.o  
+mm_objs          = mm/highmem.c.o  mm/init-mm.c.o mm/bootmem.c.o
 lib_objs         = 
 init_objs        = init/main.c.o
 
@@ -108,6 +109,8 @@ $(arch_mm)/pgtable_32.c.o: $(arch_mm)/pgtable_32.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 $(arch_mm)/init_32.c.o: $(arch_mm)/init_32.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/ioremap.c.o: $(arch_mm)/ioremap.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 
 $(arch_lib)/delay.c.o: $(arch_lib)/delay.c
 	$(CC) $(ARCH_LIB_CFLAGS) $? -o $@
@@ -133,6 +136,10 @@ init/main.c.o: init/main.c
 # mm
 mm/highmem.c.o: mm/highmem.c
 	$(CC) $(MM_CFLAGS)  -o $@ $<
+mm/init-mm.c.o: mm/init-mm.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+mm/bootmem.c.o: mm/bootmem.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 
 ###################################################
 # setup
