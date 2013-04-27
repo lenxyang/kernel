@@ -61,22 +61,22 @@ extern int smp_found_config;
 
 static inline void get_smp_config(void)
 {
-	x86_init.mpparse.get_smp_config(0);
+  x86_init.mpparse.get_smp_config(0);
 }
 
 static inline void early_get_smp_config(void)
 {
-	x86_init.mpparse.get_smp_config(1);
+  x86_init.mpparse.get_smp_config(1);
 }
 
 static inline void find_smp_config(void)
 {
-	x86_init.mpparse.find_smp_config(1);
+  x86_init.mpparse.find_smp_config(1);
 }
 
 static inline void early_find_smp_config(void)
 {
-	x86_init.mpparse.find_smp_config(0);
+  x86_init.mpparse.find_smp_config(0);
 }
 
 #ifdef CONFIG_X86_MPPARSE
@@ -109,7 +109,7 @@ extern void mp_override_legacy_irq(u8 bus_irq, u8 polarity, u8 trigger,
 extern void mp_config_acpi_legacy_irqs(void);
 struct device;
 extern int mp_register_gsi(struct device *dev, u32 gsi, int edge_level,
-				 int active_high_low);
+                           int active_high_low);
 extern int acpi_probe_gsi(void);
 #ifdef CONFIG_X86_IO_APIC
 extern int mp_find_ioapic(int gsi);
@@ -118,14 +118,14 @@ extern int mp_find_ioapic_pin(int ioapic, int gsi);
 #else /* !CONFIG_ACPI: */
 static inline int acpi_probe_gsi(void)
 {
-	return 0;
+  return 0;
 }
 #endif /* CONFIG_ACPI */
 
 #define PHYSID_ARRAY_SIZE	BITS_TO_LONGS(MAX_APICS)
 
 struct physid_mask {
-	unsigned long mask[PHYSID_ARRAY_SIZE];
+  unsigned long mask[PHYSID_ARRAY_SIZE];
 };
 
 typedef struct physid_mask physid_mask_t;
@@ -133,57 +133,57 @@ typedef struct physid_mask physid_mask_t;
 #define physid_set(physid, map)			set_bit(physid, (map).mask)
 #define physid_clear(physid, map)		clear_bit(physid, (map).mask)
 #define physid_isset(physid, map)		test_bit(physid, (map).mask)
-#define physid_test_and_set(physid, map)			\
-	test_and_set_bit(physid, (map).mask)
+#define physid_test_and_set(physid, map)        \
+  test_and_set_bit(physid, (map).mask)
 
-#define physids_and(dst, src1, src2)					\
-	bitmap_and((dst).mask, (src1).mask, (src2).mask, MAX_APICS)
+#define physids_and(dst, src1, src2)                            \
+  bitmap_and((dst).mask, (src1).mask, (src2).mask, MAX_APICS)
 
-#define physids_or(dst, src1, src2)					\
-	bitmap_or((dst).mask, (src1).mask, (src2).mask, MAX_APICS)
+#define physids_or(dst, src1, src2)                             \
+  bitmap_or((dst).mask, (src1).mask, (src2).mask, MAX_APICS)
 
-#define physids_clear(map)					\
-	bitmap_zero((map).mask, MAX_APICS)
+#define physids_clear(map)                      \
+  bitmap_zero((map).mask, MAX_APICS)
 
-#define physids_complement(dst, src)				\
-	bitmap_complement((dst).mask, (src).mask, MAX_APICS)
+#define physids_complement(dst, src)                    \
+  bitmap_complement((dst).mask, (src).mask, MAX_APICS)
 
-#define physids_empty(map)					\
-	bitmap_empty((map).mask, MAX_APICS)
+#define physids_empty(map)                      \
+  bitmap_empty((map).mask, MAX_APICS)
 
-#define physids_equal(map1, map2)				\
-	bitmap_equal((map1).mask, (map2).mask, MAX_APICS)
+#define physids_equal(map1, map2)                       \
+  bitmap_equal((map1).mask, (map2).mask, MAX_APICS)
 
-#define physids_weight(map)					\
-	bitmap_weight((map).mask, MAX_APICS)
+#define physids_weight(map)                     \
+  bitmap_weight((map).mask, MAX_APICS)
 
-#define physids_shift_right(d, s, n)				\
-	bitmap_shift_right((d).mask, (s).mask, n, MAX_APICS)
+#define physids_shift_right(d, s, n)                    \
+  bitmap_shift_right((d).mask, (s).mask, n, MAX_APICS)
 
-#define physids_shift_left(d, s, n)				\
-	bitmap_shift_left((d).mask, (s).mask, n, MAX_APICS)
+#define physids_shift_left(d, s, n)                     \
+  bitmap_shift_left((d).mask, (s).mask, n, MAX_APICS)
 
 #define physids_coerce(map)			((map).mask[0])
 
-#define physids_promote(physids)					\
-	({								\
-		physid_mask_t __physid_mask = PHYSID_MASK_NONE;		\
-		__physid_mask.mask[0] = physids;			\
-		__physid_mask;						\
-	})
+#define physids_promote(physids)                        \
+  ({                                                    \
+    physid_mask_t __physid_mask = PHYSID_MASK_NONE;     \
+    __physid_mask.mask[0] = physids;			\
+    __physid_mask;                                      \
+  })
 
 /* Note: will create very large stack frames if physid_mask_t is big */
-#define physid_mask_of_physid(physid)					\
-	({								\
-		physid_mask_t __physid_mask = PHYSID_MASK_NONE;		\
-		physid_set(physid, __physid_mask);			\
-		__physid_mask;						\
-	})
+#define physid_mask_of_physid(physid)                   \
+  ({                                                    \
+    physid_mask_t __physid_mask = PHYSID_MASK_NONE;     \
+    physid_set(physid, __physid_mask);			\
+    __physid_mask;                                      \
+  })
 
 static inline void physid_set_mask_of_physid(int physid, physid_mask_t *map)
 {
-	physids_clear(*map);
-	physid_set(physid, *map);
+  physids_clear(*map);
+  physid_set(physid, *map);
 }
 
 #define PHYSID_MASK_ALL		{ {[0 ... PHYSID_ARRAY_SIZE-1] = ~0UL} }

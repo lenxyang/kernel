@@ -56,7 +56,7 @@ arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
 		$(arch_kernel)/e820.c.o $(arch_kernel)/entry.S.o \
 		$(arch_kernel)/io_delay.c.o $(arch_kernel)/rtc.c.o  \
 		$(arch_kernel)/head.c.o	$(arch_kernel)/trampoline.c.o \
-		$(arch_kernel)/x86_init.c.o
+		$(arch_kernel)/x86_init.c.o $(arch_kernel)/probe_roms.c.o
 
 arch_mm_objs     = $(arch_mm)/highmem.c.o $(arch_mm)/pgtable.c.o \
 		$(arch_mm)/pgtable_32.c.o $(arch_mm)/init_32.c.o \
@@ -107,6 +107,8 @@ $(arch_kernel)/head.c.o: $(arch_kernel)/head.c
 $(arch_kernel)/trampoline.c.o: $(arch_kernel)/trampoline.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 $(arch_kernel)/x86_init.c.o: $(arch_kernel)/x86_init.c
+	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
+$(arch_kernel)/probe_roms.c.o: $(arch_kernel)/probe_roms.c
 	$(CC) $(ARCH_KERNEL_CFLAGS) $? -o $@
 
 $(arch_mm)/highmem.c.o: $(arch_mm)/highmem.c
