@@ -14,3 +14,10 @@ void __init early_ioremap_init(void) {
     slot_virt[i] = __fix_to_virt(FIX_BTMAP_BEGIN - NR_FIX_BTMAPS*i);
   }
 }
+
+static __initdata int after_paging_init = 0;
+static pte_t bm_pte[PAGE_SIZE / sizeof(pte_t)] __page_aligned_bss;
+
+void __init early_ioremap_reset(void) {
+  after_paging_init = 1;
+}

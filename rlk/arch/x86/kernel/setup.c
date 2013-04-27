@@ -152,9 +152,11 @@ void setup_arch(char **cmdline_p) {
 
   /**
    * init_memory_mapping 定义在 arch/x86/mm/init.c 当中
+   * 此函数会将内存分成三个区域 map_range 当中
+   * 而后根据三个区域的属性完成对三个区域的映射
    */
-  // max_low_pfn_mapped = init_memory_mapping(0, max_low_pfn<<PAGE_SHIFT);
-  // max_pfn_mapped = max_low_pfn_mapped;
+  max_low_pfn_mapped = init_memory_mapping(0, max_low_pfn<<PAGE_SHIFT);
+  max_pfn_mapped = max_low_pfn_mapped;
 
   /**
    * 为 initramfs 保存空间

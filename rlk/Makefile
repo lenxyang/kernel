@@ -59,8 +59,9 @@ arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
 		$(arch_kernel)/x86_init.c.o $(arch_kernel)/probe_roms.c.o
 
 arch_mm_objs     = $(arch_mm)/highmem.c.o $(arch_mm)/pgtable.c.o \
-		$(arch_mm)/pgtable_32.c.o $(arch_mm)/init_32.c.o \
-		$(arch_mm)/ioremap.c.o 
+		$(arch_mm)/pgtable_32.c.o $(arch_mm)/ioremap.c.o \
+		$(arch_mm)/init.c.o $(arch_mm)/init_32.c.o \
+		$(arch_mm)/ioremap.c.o $(arch_mm)/pageattr.c.o
 
 arch_lib_objs    = $(arch_lib)/delay.c.o $(arch_lib)/checksum_32.S.o \
 		$(arch_lib)/memcpy_32.c.o $(arch_lib)/strstr_32.c.o \
@@ -120,6 +121,12 @@ $(arch_mm)/pgtable_32.c.o: $(arch_mm)/pgtable_32.c
 $(arch_mm)/init_32.c.o: $(arch_mm)/init_32.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 $(arch_mm)/ioremap.c.o: $(arch_mm)/ioremap.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/init.c.o: $(arch_mm)/init.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/ioremap.c.o: $(arch_mm)/ioremap.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/pageattr.c.o: $(arch_mm)/pageattr.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 
 $(arch_lib)/delay.c.o: $(arch_lib)/delay.c
