@@ -21,24 +21,40 @@ SECTIONS {
   
   .text : AT(ADDR(.text) - LOAD_OFFSET) {
 	_text = .; /* Text and read-only data */
-        *(.text)
-        *(.altinstructions)
-        *(.altinstr_replacement)
+	HEAD_TEXT
+#ifdef CONFIG_X86_32
+        . = ALIGN(PAGE_SIZE) ;
+        *(.text.page_aligned)
+#endif
+        . = ALIGN(8) ;
+        _stext = .   ;
+        TEXT_TEXT
+        SCHED_TEXT
+        LOCK_TEXT
+        KPROBES_TEXT
+        IRQENTRY_TEXT
+        *(.fixup)
+        *(.gnu.warning)
+        /* End of text section */
+        _etext = .;
         }
-  _etext = .; /* End of text section */
 
   RO_DATA(PAGE_SIZE)
 
   .data : AT(ADDR(.data) - LOAD_OFFSET) { /* Data */
 	_sdata = .;
-        *(.init.data)
-        *(.data)
-        }
-  _edata = .;
+	INIT_TASK_DATA(THREAD_SIZE)
 
-  .text32 ALIGN(4096) : {
-          *(.text32)
-          }
+	PAGE_ALIGNED_DATA(PAGE_SIZE)
+
+	CACHELINE_ALIGNED_DATA(CONFIG_X86_L1_CACHE_BYTES)
+	
+        DATA_DATA
+	CONSTRUCTORS
+	READ_MOSTLY_DATA(CONFIG_X86_INTERNODE_CACHE_BYTES)
+	
+	_edata = .;
+        }
 
   /* Init code and data - will be freed after init */
   . = ALIGN(PAGE_SIZE) ;
@@ -84,9 +100,9 @@ SECTIONS {
 	EXIT_DATA
 	}
 
-  . = ALIGN(PAGE_SIZE);
-	
+  
   /* freed after init ends here */
+  . = ALIGN(PAGE_SIZE);
   .init.end : AT(ADDR(.init.end) - LOAD_OFFSET) {
 	__init_end = . ;
 	}

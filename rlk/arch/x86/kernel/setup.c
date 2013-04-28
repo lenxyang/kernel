@@ -5,9 +5,12 @@
 #include <asm/bootparam.h>
 #include <asm/sections.h>
 #include <asm/pgtable.h>
+#include <asm/pgtable_32.h>
 #include <asm/e820.h>
 #include <asm/cpu.h>
 #include <asm/io.h>
+
+unsigned long mmu_cr4_features;
 
 /*
  * end_pfn only includes RAM, while max_pfn_mapped includes all e820 entries.

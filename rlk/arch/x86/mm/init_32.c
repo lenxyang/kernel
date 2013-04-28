@@ -5,6 +5,7 @@
 #include <linux/mm.h>
 
 #include <asm/e820.h>
+#include <asm/init.h>
 #include <asm/pgtable.h>
 #include <asm/setup.h>
 #include <asm/fixmap.h>
@@ -14,6 +15,23 @@
 pteval_t __supported_pte_mask = ~(_PAGE_NX | _PAGE_GLOBAL | _PAGE_IOMAP);
 
 static unsigned int highmem_pages = -1;
+
+static __init void* alloc_low_page(void) {
+  unsigned long pfn = e820_table_end++;
+  void *adr;
+
+  if (pfn >= e820_table_top) {
+    panic("alloc_low_page: ran out of memory");
+  }
+
+  /**
+   * 如果映射尚未覆盖此部分，会怎么样呢？
+   * 调用它的函数可以都使用它的物理内存地址
+   */
+  adr = __va(pfn * PAGE_SIZE);
+  memset(adr, 0, PAGE_SIZE);
+  return adr;
+}
 
 void __init lowmem_pfn_init(void) {
   max_low_pfn = max_pfn;
@@ -38,6 +56,10 @@ static inline int is_kernel_text(unsigned long addr) {
 void __init highmem_pfn_init(void) {
 }
 
+/**
+ * lowpfn 与 highmem 是相对应的
+ * max_low_pfn 指的是“lowmem"能够管理的最大内存
+ */
 void __init find_low_pfn_range(void) {
   if (max_pfn <= MAXMEM_PFN) {
     lowmem_pfn_init();
@@ -46,23 +68,31 @@ void __init find_low_pfn_range(void) {
   }
 }
 
+/**
+ * 此函数创建一个 PTE table, 并把他的地址存放在 pmd 表项当中
+ *
+ */
 static pte_t *__init one_page_table_init(pmd_t* pmd) {
+  /**
+   * 在head.S当中进行内存映射时，PTE表会在__brk当中创建
+   * 完成创建PTE项的 PGD 项的标志位会被设置为 _PAGE_PRESENT
+   * 在此处，如果目标地址的PTE项对应的 PGD项尚未创建页表
+   * 则它需要创建，否则直接进行映射即可。
+   */
   if (!(pmd_val(*pmd) & _PAGE_PRESENT)) {
-    /**
-     * 此处代码在初始化阶段不会执行
-     */
-    /*
     pte_t *page_table = NULL;
     if (after_bootmem) {
-      if (!page_table)
+      /*
+      if (!page_table) {
         page_table = (pte_t*)alloc_bootmem_pages(PAGE_SIZE);
+      }
+      */
     } else {
       page_table = (pte_t*)alloc_low_page();
     }
 
     paravirt_alloc_pte(&init_mm, __pa(page_table) >> PAGE_SHIFT);
     set_pmd(pmd, __pmd(__pa(page_table) | _PAGE_TABLE));
-    */
   }
 
   return pte_offset_kernel(pmd, 0);
@@ -83,7 +113,7 @@ unsigned long __init kernel_physical_mapping_init(unsigned long start,
                                                   unsigned long page_size_mask) {
   int use_pse = page_size_mask == (1 << PG_LEVEL_2M);
   unsigned long start_pfn, end_pfn;
-  pgd_t *pgd_base = swapper_pg_dir;
+  pgd_t *pgd_base = swapper_pg_dir;  /* 定义在 head.S 当中，用作保存 PGD 之用*/
   int pgd_idx, pmd_idx, pte_ofs;
   unsigned long pfn;
   pgd_t *pgd;
@@ -100,7 +130,8 @@ unsigned long __init kernel_physical_mapping_init(unsigned long start,
 repeat:
   pages_2m = pages_4k = 0;
   pfn = start_pfn;
-  pgd_idx = pgd_index((pfn << PAGE_SHIFT) + PAGE_OFFSET);
+  /* pgd_index 计算给定虚拟地址，对应的 pgd item */
+  pgd_idx = pgd_index((pfn << PAGE_SHIFT) + PAGE_OFFSET); 
   pgd = pgd_base + pgd_idx;
 
   for (; pgd_idx < PTRS_PER_PGD; pgd++, pgd_idx++) {
@@ -115,10 +146,34 @@ repeat:
     for (; pmd_idx < PTRS_PER_PMD && pfn < end_pfn; pmd++, pmd_idx++) {
       unsigned int addr = pfn * PAGE_SIZE + PAGE_OFFSET;
 
-      pte = one_page_table_init(pmd);
-      pte_ofs = ((pfn << PAGE_SHIFT) + PAGE_OFFSET);
-      pte += pte_ofs;
+      if (use_pse) {
+        unsigned int addr2;
+        pgprot_t prot = PAGE_KERNEL_LARGE;
+        pgprot_t init_prot = __pgprot(PTE_IDENT_ATTR | _PAGE_PSE);
+        addr2 = (pfn + PTRS_PER_PTE - 1) * PAGE_SIZE +
+            PAGE_OFFSET + PAGE_SIZE - 1;
 
+        if (is_kernel_text(addr) || is_kernel_text(addr2)) {
+          prot = PAGE_KERNEL_LARGE_EXEC;
+        }
+
+        pages_2m++;
+        if (mapping_iter == 1) {
+          set_pmd(pmd, pfn_pmd(pfn, init_prot));
+        } else {
+          set_pmd(pmd, pfn_pmd(pfn, prot));
+        }
+
+        pfn += PTRS_PER_PTE;
+        continue;
+      }
+      /**
+       * 此函数将返回 PTE 的地址
+       */
+      pte = one_page_table_init(pmd);
+      pte_ofs = pte_index((pfn << PAGE_SHIFT) + PAGE_OFFSET);
+      pte += pte_ofs;
+      
       for (; pte_ofs < PTRS_PER_PTE && pfn < end_pfn;
            pte++, pfn++, pte_ofs++, addr += PAGE_SIZE) {
         pgprot_t prot = PAGE_KERNEL;
@@ -126,14 +181,18 @@ repeat:
         if (is_kernel_text(addr)) {
           prot = PAGE_KERNEL_EXEC;
         }
-
+        
         pages_4k++;
+        
         if (mapping_iter == 1) {
+          /**
+           * pfn_pte 完成的功能是帮助
+           */
           set_pte(pte, pfn_pte(pfn, init_prot));
         } else {
           set_pte(pte, pfn_pte(pfn, prot));
         }
-      }
+      } // pse
     }
   }
   if (mapping_iter == 1) {
@@ -157,8 +216,8 @@ static pte_t *page_table_kmap_check(pte_t* pte, pmd_t *pmd,
   return pte;
 }
 
-void __init
-page_table_range_init(unsigned long start, unsigned long end, pgd_t* pgd_base) {
+void __init page_table_range_init(unsigned long start, unsigned long end,
+                                  pgd_t* pgd_base) {
   int pgd_idx, pmd_idx;
   unsigned long vaddr;
   pgd_t *pgd;

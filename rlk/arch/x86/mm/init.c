@@ -4,6 +4,7 @@
 #include <asm/tlbflush.h>
 #include <asm/e820.h>
 #include <asm/sections.h>
+#include <asm/cpufeature.h>
 
 unsigned long __initdata e820_table_start;
 unsigned long __meminitdata e820_table_end;
@@ -26,11 +27,54 @@ struct map_range {
 #define NR_RANGE_MR 3
 
 /**
+ *
+ *
  * 此函数的功能是完成对三个全局变量
  * e820_table_start, e820_table_end 和 e820_table_top 的功能
  */
 static void __init find_early_table_space(unsigned long end, int use_pse,
                                           int use_gbpages) {
+  unsigned long puds, pmds, ptes, tables, start;
+  puds = (end + PUD_SIZE - 1) >> PUD_SHIFT;
+  tables = roundup(puds * sizeof(pud_t), PAGE_SIZE);
+
+  if (use_gbpages) {
+    unsigned long extra;
+    extra = end - ((end >> PUD_SHIFT) << PUD_SHIFT);
+    pmds = (extra + PMD_SIZE - 1) >> PMD_SHIFT;
+  } else {
+    pmds = (end + PMD_SIZE - 1) >> PMD_SHIFT;
+  }
+
+  tables += roundup(pmds * sizeof(pmd_t), PAGE_SIZE);
+
+  if (use_pse) {
+    unsigned long extra;
+    extra = end - ((end >> PMD_SHIFT) << PMD_SHIFT);
+    extra += PMD_SIZE;
+    ptes = (extra + PAGE_SIZE - 1) >> PAGE_SHIFT;
+  } else {
+    ptes = (end + PAGE_SIZE - 1) >> PAGE_SHIFT;
+  }
+
+  tables += roundup(ptes * sizeof(pte_t), PAGE_SIZE);
+
+  tables += roundup(__end_of_fixed_addresses * sizeof(pte_t), PAGE_SIZE);
+
+  start = 0x7000;
+
+  e820_table_start = find_e820_area(start, max_pfn_mapped << PAGE_SHIFT,
+                                    tables, PAGE_SIZE);
+  if (e820_table_start == -1UL) {
+    panic("Cannot find space for the kernel page tables");
+  }
+
+  /**
+   *
+   */
+  e820_table_start >>= PAGE_SHIFT;
+  e820_table_end = e820_table_start;
+  e820_table_top = e820_table_start + (tables >> PAGE_SHIFT);
 }
 
 static int __meminit save_mr(struct map_range* mr, int nr_range,
@@ -70,8 +114,18 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
 
   printk(KERN_INFO "init_memory_mapping: %016lx-%016lx\n", start, end);
 
-  use_pse = 0;
-  use_gbpages = 0;
+  use_pse = 1; // cpu_has_pse;
+  use_gbpages = 0; // direct_gbpages;
+
+  set_nx();
+  
+    
+  if (cpu_has_pse)
+    set_in_cr4(X86_CR4_PSE);
+  if (use_pse) {
+    set_in_cr4(X86_CR4_PSE);
+    page_size_mask |= 1 << PG_LEVEL_2M;
+  }
 
   memset(mr, 0, sizeof(mr));
   nr_range = 0;
@@ -128,13 +182,16 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
   end_pfn = end >> PAGE_SHIFT;
   nr_range = save_mr(mr, nr_range, start_pfn, end_pfn, 0);
 
-  /* 这里的代码仅仅用来整理生成的 mr_range
-   * 例如，如果仅仅有4M物理内存，那么第二段的开始及结尾相同
-   * 它就没有存在的必要了。又或者，物理内存超过4G，此时第三段
-   * 就不存在了。
+  /**
+   * 将连续出现且属性相同的段进行合并
    */
   for (i = 0; i < nr_range - 1 && nr_range > 1; i++) {
     unsigned long old_start;
+   /**
+    * 如果首尾相接且段的属性相同则合并
+    * 在默认情况下，将被分成三个段， 其中第二个段采用 2M 分页
+    * 
+    */
     if (mr[i].end != mr[i+1].start ||
         mr[i].page_size_mask != mr[i+1].page_size_mask)
       continue;
@@ -142,6 +199,7 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
     old_start = mr[i].start;
     memmove(&mr[i], &mr[i+1],
             (nr_range - 1 - i) * sizeof(struct map_range));
+    mr[i--].start = old_start;
     nr_range--;
   }
 

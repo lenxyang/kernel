@@ -61,7 +61,8 @@ arch_kernel_objs = $(arch_kernel)/head.S.o $(arch_kernel)/setup.c.o  \
 arch_mm_objs     = $(arch_mm)/highmem.c.o $(arch_mm)/pgtable.c.o \
 		$(arch_mm)/pgtable_32.c.o $(arch_mm)/ioremap.c.o \
 		$(arch_mm)/init.c.o $(arch_mm)/init_32.c.o \
-		$(arch_mm)/ioremap.c.o $(arch_mm)/pageattr.c.o
+		$(arch_mm)/ioremap.c.o $(arch_mm)/pageattr.c.o \
+		$(arch_mm)/setup_nx.c.o
 
 arch_lib_objs    = $(arch_lib)/delay.c.o $(arch_lib)/checksum_32.S.o \
 		$(arch_lib)/memcpy_32.c.o $(arch_lib)/strstr_32.c.o \
@@ -127,6 +128,8 @@ $(arch_mm)/init.c.o: $(arch_mm)/init.c
 $(arch_mm)/ioremap.c.o: $(arch_mm)/ioremap.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 $(arch_mm)/pageattr.c.o: $(arch_mm)/pageattr.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+$(arch_mm)/setup_nx.c.o: $(arch_mm)/setup_nx.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 
 $(arch_lib)/delay.c.o: $(arch_lib)/delay.c
@@ -201,22 +204,22 @@ $(arch_setup)/copy.S.o: $(arch_setup)/copy.S
 $(arch_setup)/header.S.o: $(arch_setup)/header.S
 	$(CC) $(BOOTAFLAGS) $? -o $@
 
-run:
+run: FORCE
 	./tools/run.sh
 
-brun:
+brun: FORCE
 	./tools/bochs_run.sh
 
-gdb:
+gdb: FORCE
 	./tools/gdb.sh
 
-bgdb:
+bgdb: FORCE
 	./tools/bochs_gdb.sh
 
-binternaldbg:
+binternaldbg: FORCE
 	./tools/bochs_internal_gdb.sh
 
-clean:
+clean: FORCE
 	rm -f $(arch_setup)/*.o
 	rm -f $(arch_kernel)/*.o
 	rm -f $(arch_kernel)/vmlinux.lds
@@ -226,6 +229,9 @@ clean:
 	rm -f mm/*.o
 	rm -f init/*.o
 	rm -f setup.gdb setup.bin
+
+FORCE:
+.PHYONY: FORCE
 
 
 # 废弃的目标(暂时)

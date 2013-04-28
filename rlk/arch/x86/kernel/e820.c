@@ -7,6 +7,7 @@
 #include <asm/string.h>
 #include <asm/boot.h>
 #include <asm/setup.h>
+#include <asm/proto.h>
 
 #ifdef CONFIG_X86_32
 # ifdef CONFIG_X86_PAE
@@ -344,6 +345,59 @@ static void __init __reserve_early(u64 start, u64 end, char* name,
   if (name) {
     strncpy(r->name, name, sizeof(r->name) - 1);
   }
+}
+
+static inline int __init bad_addr(u64 *addrp, u64 size, u64 align) {
+  int i;
+  u64 addr = *addrp;
+  int changed = 0;
+  struct early_res *r;
+again:
+  i = find_overlapped_early(addr, addr + size);
+  r = &early_res[i];
+  if (i < MAX_EARLY_RES && r->end) {
+    *addrp = addr = round_up(r->end, align);
+    changed = 1;
+    goto again;
+  }
+
+  return changed;
+}
+
+u64 __init find_e820_area(u64 start, u64 end, u64 size, u64 align) {
+  int i;
+  for (i = 0; i < e820.nr_map; i++) {
+    struct e820entry* ei = &e820.map[i];
+    u64 addr, last;
+    u64 ei_last;
+
+    if (ei->type != E820_RAM) {
+      continue;
+    }
+
+    addr = round_up(ei->addr, align);
+    ei_last = ei->addr + ei->size;
+    if (addr < start)
+      addr = round_up(start, align);
+    if (addr >= ei_last)
+      continue;
+
+    while (bad_addr(&addr, size, align) && addr + size <= ei_last) {
+      ;
+    }
+
+    last = addr + size;
+    if (last > ei_last) {
+      continue;
+    }
+    if (last > end) {
+      continue;
+    }
+
+    return addr;
+  }
+
+  return -1ULL;
 }
 
 void __init reserve_early_overlap_ok(u64 start, u64 end, char* name) {

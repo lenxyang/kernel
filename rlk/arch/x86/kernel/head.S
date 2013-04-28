@@ -51,11 +51,13 @@ ENTRY(startup_32)
 
 	/**
 	* 初始化页表
+	* PGD 通过 swapper_pg_dir 保存，而页表保存在 __brk_base 当中
+	* 映射表：
+	* 物理地址 0 ~ _end 应设置虚拟地址 0 ~ _end
+	* 物理地址 0 ~ _end 应设置虚拟地址 0xC0000000 ~ _end + 0xC0000000
+	* 页表完成保存以后, brk的可用空间保存至 _brk_end 当中
 	*/
 page_pde_offset = (__PAGE_OFFSET >> 20)
-	/* pg0 保存了vmlinux结束的位置, 通过寄存%edi得到了vmlinux的大小
-	* 同时 pg0 将作为pte的其实地址
-	*/
 	movl	$pa(__brk_base), %edi
 	movl	$pa(swapper_pg_dir), %edx
 	movl	$PTE_IDENT_ATTR, %eax /* attributes */
