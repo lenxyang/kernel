@@ -48,6 +48,10 @@ void __init find_low_pfn_range(void) {
 
 static pte_t *__init one_page_table_init(pmd_t* pmd) {
   if (!(pmd_val(*pmd) & _PAGE_PRESENT)) {
+    /**
+     * 此处代码在初始化阶段不会执行
+     */
+    /*
     pte_t *page_table = NULL;
     if (after_bootmem) {
       if (!page_table)
@@ -58,6 +62,7 @@ static pte_t *__init one_page_table_init(pmd_t* pmd) {
 
     paravirt_alloc_pte(&init_mm, __pa(page_table) >> PAGE_SHIFT);
     set_pmd(pmd, __pmd(__pa(page_table) | _PAGE_TABLE));
+    */
   }
 
   return pte_offset_kernel(pmd, 0);
