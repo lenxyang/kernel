@@ -281,3 +281,63 @@ void __init early_ioremap_page_table_range_init(void) {
   page_table_range_init(vaddr, end, pgd_base);
   early_ioremap_reset();
 }
+
+static unsigned long __init setup_node_bootmem(int nodeid,
+                                               unsigned long start_pfn,
+                                               unsigned long end_pfn,
+                                               unsigned long bootmap) {
+  unsigned long bootmap_size;
+  bootmap_size = init_bootmem_node(NODE_DATA(nodeid),
+                                   bootmap >> PAGE_SHIFT,
+                                   start_pfn, end_pfn);
+  printk(KERN_INFO "  node %d low ram: %08lx - %08lx\n",
+         nodeid, start_pfn<<PAGE_SHIFT, end_pfn<<PAGE_SHIFT);
+  printk(KERN_INFO "  node %d bootmap %08lx - %08lx\n",
+         nodeid, bootmap, bootmap + bootmap_size);
+  free_bootmem_with_active_regions(nodeid, end_pfn);
+  early_res_to_bootmem(start_pfn<<PAGE_SHIFT, end_pfn<<PAGE_SHIFT);
+
+  return bootmap + bootmap_size;
+}
+
+void __init setup_bootmem_allocator(void) {
+  int nodeid;
+
+  unsigned long bootmap_size, bootmap;
+
+  /*
+   * 计算需要多少空间保存 bootmap 并通过 e820 分配空间
+   */
+  bootmap_size = bootmem_bootmap_pages(max_low_pfn) << PAGE_SHIFT;
+  bootmap = find_e820_area(0, max_pfn_mapped << PAGE_SHIFT, bootmap_size,
+                           PAGE_SIZE);
+  if (bootmap == -1L) {
+    panic("Cannot find bootmem map of size %ld\n", bootmap_size);
+  }
+
+  reserve_early(bootmap, bootmap + bootmap_size, "BOOTMAP");
+
+  printk(KERN_INFO "  mapped low ram: 0 - %08lx\n",
+         max_pfn_mapped<<PAGE_SHIFT);
+  printk(KERN_INFO "  low ram: 0 - %08lx\n", max_low_pfn<<PAGE_SHIFT);
+
+  /**
+   *
+   */
+  for_each_online_node(nodeid) {
+    unsigned long start_pfn, end_pfn;
+    start_pfn = 0;
+    end_pfn = max_low_pfn;
+
+    bootmap = setup_node_bootmem(nodeid, start_pfn, end_pfn, bootmap);
+  }
+
+  after_bootmem = 1;
+}
+
+int __init reserve_bootmem_generic(unsigned long phys, unsigned long len,
+                                   int flags)
+{
+  return reserve_bootmem(phys, len, flags);
+}
+

@@ -2,6 +2,7 @@
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/mm.h>
+#include <linux/bootmem.h>
 
 #include <asm/e820.h>
 #include <asm/string.h>
@@ -231,6 +232,36 @@ char *__init default_machine_specific_memory_setup(void) {
   return who;
 }
 
+int __init e820_find_active_region(const struct e820entry *ei,
+                                   unsigned long start_pfn,
+                                   unsigned long last_pfn,
+                                   unsigned long *ei_startpfn,
+                                   unsigned long *ei_endpfn) {
+  u64 align = PAGE_SIZE;
+
+  *ei_startpfn = round_up(ei->addr, align) >> PAGE_SHIFT;
+  *ei_endpfn = round_up(ei->addr + ei->size, align) >> PAGE_SHIFT;
+
+  if (*ei_startpfn >= *ei_endpfn) {
+    return 0;
+  }
+
+  if (ei->type != E820_RAM || *ei_endpfn <= start_pfn
+      || *ei_startpfn >= last_pfn) {
+    return 0;
+  }
+
+  if (*ei_startpfn < start_pfn) {
+    *ei_startpfn = start_pfn;
+  }
+
+  if (*ei_endpfn > last_pfn) {
+    *ei_endpfn = last_pfn;
+  }
+
+  return 1;
+}
+
 /**
  *  early reserved memory areas
  *
@@ -420,4 +451,48 @@ void __init  setup_memory_map(void) {
   memcpy(&e820_saved, &e820, sizeof(struct e820map));
   printk(KERN_INFO "BIOS-provided physical RAM map:\n");
   e820_print_map(who);
+}
+
+/* Walk the e820 map and register active regions within a node */
+/* called by function initmem_init */
+void __init e820_register_active_regions(int nid, unsigned long start_pfn,
+                                         unsigned long last_pfn) {
+  unsigned long ei_startpfn;
+  unsigned long ei_endpfn;
+  int i;
+
+  for (i = 0; i < e820.nr_map; i++) {
+    if (e820_find_active_region(&e820.map[i], start_pfn, last_pfn,
+                                &ei_startpfn, &ei_endpfn)) {
+      add_active_range(nid, ei_startpfn, ei_endpfn);
+    }
+  }
+}
+
+void __init early_res_to_bootmem(u64 start, u64 end)
+{
+  int i, count;
+  u64 final_start, final_end;
+
+  count  = 0;
+  for (i = 0; i < MAX_EARLY_RES && early_res[i].end; i++)
+    count++;
+
+  printk(KERN_INFO "(%d early reservations) ==> bootmem [%010llx - %010llx]\n",
+         count, start, end);
+  for (i = 0; i < count; i++) {
+    struct early_res *r = &early_res[i];
+    printk(KERN_INFO "  #%d [%010llx - %010llx] %16s", i,
+           r->start, r->end, r->name);
+    final_start = max(start, r->start);
+    final_end = min(end, r->end);
+    if (final_start >= final_end) {
+      printk(KERN_CONT "\n");
+      continue;
+    }
+    printk(KERN_CONT " ==> [%010llx - %010llx]\n",
+           final_start, final_end);
+    reserve_bootmem_generic(final_start, final_end - final_start,
+                            BOOTMEM_DEFAULT);
+  }
 }
