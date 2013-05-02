@@ -68,7 +68,7 @@ arch_lib_objs    = $(arch_lib)/delay.c.o $(arch_lib)/checksum_32.S.o \
 		$(arch_lib)/memcpy_32.c.o $(arch_lib)/strstr_32.c.o \
 		$(arch_lib)/string_32.c.o
 kernel_objs      = kernel/printk.c.o kernel/panic.c.o kernel/resource.c.o 
-mm_objs          = mm/highmem.c.o  mm/init-mm.c.o mm/bootmem.c.o
+mm_objs          = mm/highmem.c.o  mm/init-mm.c.o mm/bootmem.c.o mm/memory.c.o
 lib_objs         = 
 init_objs        = init/main.c.o
 
@@ -161,6 +161,8 @@ mm/highmem.c.o: mm/highmem.c
 mm/init-mm.c.o: mm/init-mm.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 mm/bootmem.c.o: mm/bootmem.c
+	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
+mm/memory.c.o: mm/memory.c
 	$(CC) $(ARCH_MM_CFLAGS) $? -o $@
 
 ###################################################

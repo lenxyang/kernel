@@ -171,13 +171,14 @@ void setup_arch(char **cmdline_p) {
 
   // io_delay_init();
 
-  /*
+
   initmem_init(0, max_pfn);
 
   x86_init.paging.pagetable_setup_start(swapper_pg_dir);
   paging_init();
   x86_init.paging.pagetable_setup_done(swapper_pg_dir);
 
+  /*
   e820_reserve_resources();
   e820_mark_nosave_regions(max_low_pfn);
   x86_init.resources.reserve_resources();

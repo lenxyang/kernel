@@ -14,6 +14,8 @@
 
 pteval_t __supported_pte_mask = ~(_PAGE_NX | _PAGE_GLOBAL | _PAGE_IOMAP);
 
+bool __read_mostly __vmalloc_start_set = false;
+
 static unsigned int highmem_pages = -1;
 
 static __init void* alloc_low_page(void) {

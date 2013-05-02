@@ -1,5 +1,6 @@
 #include <linux/mm.h>
 #include <linux/string.h>
+#include <linux/bootmem.h>
 
 #include <asm/tlbflush.h>
 #include <asm/e820.h>
@@ -248,4 +249,18 @@ unsigned long __init_refok init_memory_mapping(unsigned long start,
     early_memtest(start, end);
 
   return ret >> PAGE_SHIFT;
+}
+
+void __init initmem_init(unsigned long start_pfn, unsigned long end_pfn) {
+  e820_register_active_regions(0, 0, max_low_pfn);
+  sparse_memory_present_with_active_regions(0);
+  num_physpages = max_low_pfn;
+  high_memory = (void*)__va(max_low_pfn * PAGE_SIZE - 1) + 1;
+
+  __vmalloc_start_set = true;
+
+  printk(KERN_NOTICE "%ldMB LOWMEM available.\n",
+         pages_to_mb(max_low_pfn));
+
+  setup_bootmem_allocator();
 }
